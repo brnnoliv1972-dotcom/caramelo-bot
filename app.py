@@ -1,3 +1,4 @@
+Python
 import os
 import requests
 from flask import Flask, request, jsonify
@@ -6,6 +7,9 @@ app = Flask(__name__)
 
 ZAPI_INSTANCE_ID = os.environ.get("ZAPI_INSTANCE_ID")
 ZAPI_TOKEN = os.environ.get("ZAPI_TOKEN")
+
+# Cole o seu link da Amazon dentro das aspas abaixo:
+LINK_AMAZON = "COLE_SEU_LINK_DA_AMAZON_AQUI"
 
 @app.route("/", methods=["GET"])
 def home():
@@ -20,7 +24,12 @@ def webhook():
         user_message = data.get("text", {}).get("message", "")
         
         if user_message:
-            bot_response = f"Olá! Recebi sua mensagem: '{user_message}'. Em breve o Caramelo Bot vai te atender!"
+            bot_response = (
+                f"Olá! Obrigado pelo contato! 🐶\n\n"
+                f"Confira as melhores ofertas e recomendações no nosso link exclusivo da Amazon:\n"
+                f"{LINK_AMAZON}\n\n"
+                f"Em breve te atendo com mais detalhes!"
+            )
             send_zapi_message(phone, bot_response)
             
     return jsonify({"status": "success"}), 200
