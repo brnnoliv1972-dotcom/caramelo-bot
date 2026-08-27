@@ -4,7 +4,7 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Recupera as chaves salvas nas variáveis de ambiente do Render
+# Recupera as variáveis de ambiente configuradas no Render
 ZAPI_INSTANCE_ID = os.environ.get("ZAPI_INSTANCE_ID")
 ZAPI_TOKEN = os.environ.get("ZAPI_TOKEN")
 
@@ -18,7 +18,7 @@ def home():
 def webhook():
     data = request.get_json()
 
-    # Exibe no log tudo o que a Z-API enviou
+    # Registra no log do Render o objeto JSON recebido
     print("Payload recebido da Z-API:", data)
 
     if data:
@@ -28,7 +28,7 @@ def webhook():
         if not is_from_me:
             phone = data.get("phone")  # Número do remetente
 
-            # Monta a URL de envio da Z-API
+            # URL de envio oficial da Z-API
             url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}/send-text"
 
             payload = {
@@ -38,7 +38,6 @@ def webhook():
 
             headers = {"Content-Type": "application/json"}
 
-            # Faz a requisição de envio de volta para a Z-API
             try:
                 response = requests.post(
                     url, json=payload, headers=headers, timeout=10
