@@ -1,4 +1,3 @@
-Python
 import os
 import requests
 from flask import Flask, request
@@ -19,7 +18,7 @@ def home():
 def webhook():
     data = request.get_json()
 
-    # Exibe no log tudo o que a Z-API enviou (ótimo para depuração)
+    # Exibe no log tudo o que a Z-API enviou
     print("Payload recebido da Z-API:", data)
 
     if data:
@@ -55,3 +54,4 @@ def webhook():
 
 
 if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
