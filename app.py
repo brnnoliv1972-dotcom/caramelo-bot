@@ -46,6 +46,7 @@ CATALOGO = [
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
+        print("ERRO: GEMINI_API_KEY não foi encontrada nas variáveis do Render.")
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
     prompt_texto = f"""
@@ -73,7 +74,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             {"inline_data": {"mime_type": mime_type, "data": img_b64}}
         )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
 
@@ -84,10 +85,10 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         if "candidates" in res_json and len(res_json["candidates"]) > 0:
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
         else:
-            print(f"Erro no retorno do Gemini: {res_json}")
+            print(f"RESPOSTA DA API DO GOOGLE COM ERRO: {res_json}")
             return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
     except Exception as e:
-        print(f"Erro na requisição: {e}")
+        print(f"EXCEÇÃO AO CHAMAR GEMINI: {e}")
         return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
 
