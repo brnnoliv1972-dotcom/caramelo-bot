@@ -4,9 +4,9 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Recupera as chaves das variáveis de ambiente do Render
-ZAPI_INSTANCE_ID = os.environ.get("ZAPI_INSTANCE_ID")
-ZAPI_TOKEN = os.environ.get("ZAPI_TOKEN")
+# ID e Token da sua instância Z-API
+INSTANCE_ID = "3F82F1A840F592680627F2CCB21A3920"
+INSTANCE_TOKEN = "593C64792C43EADAA3AC305F"
 
 
 @app.route("/", methods=["GET"])
@@ -21,22 +21,20 @@ def webhook():
     print("Payload recebido da Z-API:", data)
 
     if data:
+        # Verifica se a mensagem veio de outra pessoa (não do próprio bot)
         is_from_me = data.get("fromMe", False)
 
         if not is_from_me:
             phone = data.get("phone")
 
-            url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}/send-text"
+            url = f"https://api.z-api.io/instances/{INSTANCE_ID}/token/{INSTANCE_TOKEN}/send-text"
 
             payload = {
                 "phone": phone,
                 "message": "Olá! Seja bem-vindo ao Caramelo Bot. Confira nossas ofertas na Amazon: https://amazon.com.br",
             }
 
-            headers = {
-                "Content-Type": "application/json",
-                "Client-Token": ZAPI_TOKEN,
-            }
+            headers = {"Content-Type": "application/json"}
 
             try:
                 response = requests.post(
