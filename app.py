@@ -10,7 +10,7 @@ INSTANCE_ID = "3F82F1A840F592680627F2CCB21A3920"
 INSTANCE_TOKEN = "593C64792C43EADAA3AC305F"
 CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
 
-# Busca a chave com segurança do Render
+# Busca a chave com segurança das Variáveis de Ambiente do Render
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "caramelobot-20"  # Substitua pela sua tag de afiliado Amazon
 
