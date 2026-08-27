@@ -14,7 +14,7 @@ CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "102030brn2586-20"
 
-# CATÁLOGO DE PRODUTOS (Links de busca que NUNCA dão erro 404)
+# CATÁLOGO DE PRODUTOS (Links de Busca Oficiais da Amazon)
 CATALOGO = [
     {
         "nome": "Batedeira Planetária",
@@ -46,7 +46,6 @@ CATALOGO = [
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
-        print("ERRO: GEMINI_API_KEY não configurada no Render.")
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
     prompt_texto = f"""
@@ -58,10 +57,9 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     Link Geral da Loja: https://www.amazon.com.br?tag={AMAZON_TAG}
     
     Instruções:
-    1. Se o cliente perguntar de algum produto específico (ex: batedeira, fone, ração, celular, parafusadeira), recomende o produto do catálogo e inclua OBRIGATORIAMENTE o link direto dele.
+    1. Se o cliente perguntar de algum produto específico (ex: batedeira, fone, ração, celular, parafusadeira), recomende o produto do catálogo e inclua OBRIGATORIAMENTE o link de busca com a tag oficial.
     2. Se o produto não estiver no catálogo, seja amigável, diga que vai procurar as melhores promoções e envie o Link Geral da Loja com a tag.
-    3. Se o cliente enviar uma FOTO: Identifique o produto na imagem, explique o que é e envie um link de busca ou o link do item no catálogo.
-    4. Se o cliente enviar um LINK SUSPEITO pedindo análise: Verifique se é oficial (ex: amazon.com.br). Se for suspeito, alerte sobre fraude/golpe e ofereça o link seguro com a tag oficial.
+    3. Se o cliente enviar uma FOTO: Identifique o produto na imagem, explique o que é e envie o link de busca correspondente com a tag oficial.
     
     Mensagem recebida do cliente: "{mensagem_cliente}"
     """
@@ -74,8 +72,8 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             {"inline_data": {"mime_type": mime_type, "data": img_b64}}
         )
 
-    # Endpoint Gemini 2.5 Flash
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # Atualizado para gemini-3.6-flash
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
 
@@ -88,12 +86,12 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         else:
             print(f"ERRO GEMINI RESP: {res_json}")
             if "batedeira" in mensagem_cliente.lower():
-                return f"Au au! Encontrei ótimas opções de Batedeira Planetária na promoção! Confira aqui: https://www.amazon.com.br/s?k=batedeira+planetaria&tag={AMAZON_TAG}"
+                return f"Au au! Encontrei as melhores batedeiras planetárias na promoção! Confira aqui: https://www.amazon.com.br/s?k=batedeira+planetaria&tag={AMAZON_TAG}"
             return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
     except Exception as e:
         print(f"EXCEÇÃO GEMINI: {e}")
         if "batedeira" in mensagem_cliente.lower():
-            return f"Au au! Encontrei ótimas opções de Batedeira Planetária na promoção! Confira aqui: https://www.amazon.com.br/s?k=batedeira+planetaria&tag={AMAZON_TAG}"
+            return f"Au au! Encontrei as melhores batedeiras planetárias na promoção! Confira aqui: https://www.amazon.com.br/s?k=batedeira+planetaria&tag={AMAZON_TAG}"
         return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
 
