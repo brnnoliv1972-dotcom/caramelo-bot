@@ -1,11 +1,10 @@
-Python
 import os
 import requests
 from flask import Flask, request
 
 app = Flask(__name__)
 
-# Recupera as chaves salvas no Render
+# Recupera as chaves das variáveis de ambiente do Render
 ZAPI_INSTANCE_ID = os.environ.get("ZAPI_INSTANCE_ID")
 ZAPI_TOKEN = os.environ.get("ZAPI_TOKEN")
 
@@ -34,7 +33,6 @@ def webhook():
                 "message": "Olá! Seja bem-vindo ao Caramelo Bot. Confira nossas ofertas na Amazon: https://amazon.com.br",
             }
 
-            # Adicionado o Client-Token exigido pela Z-API
             headers = {
                 "Content-Type": "application/json",
                 "Client-Token": ZAPI_TOKEN,
