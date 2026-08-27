@@ -12,7 +12,7 @@ CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
 
 # Busca a chave com segurança das Variáveis de Ambiente do Render
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-AMAZON_TAG = "caramelobot-20"  # Substitua pela sua tag de afiliado Amazon
+AMAZON_TAG = "102030brn2586-20"
 
 # CATÁLOGO DE PRODUTOS
 CATALOGO = [
