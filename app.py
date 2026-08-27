@@ -141,7 +141,7 @@ def webhook():
 
         try:
             requests.post(
-                url_zapi, json=payload_zapi, headers_zapi=headers_zapi, timeout=10
+                url_zapi, json=payload_zapi, headers=headers_zapi, timeout=10
             )
         except Exception as e:
             print(f"Erro Z-API: {e}")
@@ -151,4 +151,3 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-
