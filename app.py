@@ -10,9 +10,9 @@ INSTANCE_ID = "3F82F1A840F592680627F2CCB21A3920"
 INSTANCE_TOKEN = "593C64792C43EADAA3AC305F"
 CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
 
-# Busca a chave com segurança das variáveis de ambiente do Render
+# Busca a chave com segurança do Render
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-AMAZON_TAG = "caramelobot-20"  # Substitua pelo seu ID de Afiliado Amazon
+AMAZON_TAG = "caramelobot-20"  # Substitua pela sua tag de afiliado Amazon
 
 # CATÁLOGO DE PRODUTOS
 CATALOGO = [
@@ -109,5 +109,3 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-
-
