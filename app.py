@@ -10,7 +10,7 @@ INSTANCE_ID = "3F82F1A840F592680627F2CCB21A3920"
 INSTANCE_TOKEN = "593C64792C43EADAA3AC305F"
 CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
 
-# Chave do Gemini e Tag da Amazon
+# Busca a chave com segurança das variáveis de ambiente do Render
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "caramelobot-20"  # Substitua pelo seu ID de Afiliado Amazon
 
@@ -40,7 +40,7 @@ CATALOGO = [
 
 
 def gerar_resposta_ia(mensagem_cliente):
-    """Usa a IA gratuita do Gemini para entender o cliente e responder com o catálogo."""
+    """Usa a IA do Gemini para entender o cliente e responder com o catálogo."""
     if not GEMINI_API_KEY:
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
@@ -109,3 +109,5 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
+
