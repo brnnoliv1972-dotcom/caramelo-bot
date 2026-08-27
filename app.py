@@ -20,7 +20,7 @@ AMAZON_TAG = "102030brn2586-20"
 CATALOGO = [
     {
         "nome": "Batedeira Planetária",
-        "categoria": "cozinha eletrodomesticos",
+        "categoria": "cozinha eletrodomesticos batedeira",
         "link": f"https://www.amazon.com.br/dp/B0765C7ZND?tag={AMAZON_TAG}",
     },
     {
@@ -62,16 +62,16 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     Link Geral da Loja: https://www.amazon.com.br?tag={AMAZON_TAG}
     
     Instruções:
-    1. Se o cliente enviar uma FOTO: Identifique o produto na imagem, explique o que é e envie o link do item no catálogo (ou o link geral da loja se não estiver no catálogo).
-    2. Se o cliente enviar um LINK SUSPEITO pedindo análise: Verifique se o domínio é oficial (ex: amazon.com.br). Se for suspeito, alerte sobre fraude/golpe e ofereça o link seguro com a tag oficial.
-    3. Se o cliente fizer perguntas de produtos ou gerais: Responda de forma simples, curta e envie o link correto da oferta com a tag de afiliado.
+    1. Se o cliente perguntar de algum produto específico (ex: batedeira, fone, ração, celular, parafusadeira), recomende o produto do catálogo e inclua OBRIGATORIAMENTE o link direto dele.
+    2. Se o produto não estiver no catálogo, seja amigável, diga que vai procurar as melhores promoções e envie o Link Geral da Loja.
+    3. Se o cliente enviar uma FOTO: Identifique o produto na imagem, explique o que é e envie o link do item (ou link geral se não houver no catálogo).
+    4. Se o cliente enviar um LINK SUSPEITO pedindo análise: Verifique se é oficial (ex: amazon.com.br). Se for suspeito, alerte sobre fraude/golpe e ofereça o link seguro com a tag oficial.
     
     Mensagem do cliente: "{mensagem_cliente}"
     """
 
     contents = [prompt]
 
-    # Se houver imagem enviada pelo WhatsApp, adiciona para a IA analisar
     if imagem_bytes and mime_type:
         contents.append(
             types.Part.from_bytes(data=imagem_bytes, mime_type=mime_type)
@@ -84,7 +84,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         return response.text
     except Exception as e:
         print(f"Erro no Gemini: {e}")
-        return f"Olá! Confira as melhores ofertas com desconto na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
+        return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
 
 @app.route("/", methods=["GET"])
@@ -102,18 +102,22 @@ def webhook():
         imagem_bytes = None
         mime_type = None
 
-        # 1. Trata mensagem de texto
-        if "text" in data:
+        # Captura texto da mensagem
+        if "text" in data and isinstance(data["text"], dict):
             user_message = data["text"].get("message", "")
+        elif "body" in data:
+            user_message = data.get("body", "")
 
-        # 2. Trata mensagem com foto/imagem enviada
-        elif "image" in data:
+        # Captura imagem
+        if "image" in data and isinstance(data["image"], dict):
             image_info = data["image"]
-            user_message = image_info.get(
-                "caption", "O que é este produto da foto?"
-            )
-            image_url = image_info.get("imageUrl")
+            caption = image_info.get("caption")
+            if caption:
+                user_message = caption
+            else:
+                user_message = "O que é este produto da foto?"
 
+            image_url = image_info.get("imageUrl")
             if image_url:
                 try:
                     img_resp = requests.get(image_url, timeout=10)
@@ -123,12 +127,15 @@ def webhook():
                 except Exception as e:
                     print(f"Erro ao baixar imagem: {e}")
 
-        # Gera a resposta via Gemini (texto ou foto)
+        if not user_message and not imagem_bytes:
+            user_message = "Olá!"
+
+        # Processa resposta no Gemini
         resposta_bot = processar_resposta(
             user_message, imagem_bytes, mime_type
         )
 
-        # Envia a resposta de volta ao WhatsApp via Z-API
+        # Envia de volta para a Z-API
         url = f"https://api.z-api.io/instances/{INSTANCE_ID}/token/{INSTANCE_TOKEN}/send-text"
         payload = {"phone": phone, "message": resposta_bot}
         headers = {
@@ -146,3 +153,4 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+    
