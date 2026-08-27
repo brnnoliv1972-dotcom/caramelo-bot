@@ -45,7 +45,6 @@ CATALOGO = [
 
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
-    """Processa texto e imagem fazendo chamada HTTP direta à API do Gemini."""
     if not GEMINI_API_KEY:
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
@@ -142,7 +141,6 @@ def webhook():
         }
 
         try:
-            # CORRIGIDO AQUI: headers=headers_zapi
             requests.post(
                 url_zapi, json=payload_zapi, headers=headers_zapi, timeout=10
             )
