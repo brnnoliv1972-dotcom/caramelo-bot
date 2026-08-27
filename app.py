@@ -79,7 +79,8 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=contents
+    model="gemini-1.5-flash", contents=contents
+)
         )
         return response.text
     except Exception as e:
