@@ -1,9 +1,7 @@
-import base64
 import os
 import requests
 from flask import Flask, request
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 app = Flask(__name__)
 
@@ -15,6 +13,9 @@ CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
 # Configurações do Afiliado e Gemini
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "102030brn2586-20"
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # CATÁLOGO DE PRODUTOS
 CATALOGO = [
@@ -47,11 +48,9 @@ CATALOGO = [
 
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
-    """Processa texto e/ou imagens com o Gemini 1.5 Flash."""
+    """Processa texto e/ou imagens usando o Gemini 1.5 Flash."""
     if not GEMINI_API_KEY:
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
-
-    client = genai.Client(api_key=GEMINI_API_KEY)
 
     prompt = f"""
     Você é o Caramelo Bot, um assistente virtual simpático, divertido e prestativo especializado em ofertas da Amazon Brasil.
@@ -70,17 +69,15 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     Mensagem do cliente: "{mensagem_cliente}"
     """
 
-    contents = [prompt]
-
-    if imagem_bytes and mime_type:
-        contents.append(
-            types.Part.from_bytes(data=imagem_bytes, mime_type=mime_type)
-        )
-
     try:
-        response = client.models.generate_content(
-            model="gemini-1.5-flash", contents=contents
-        )
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        if imagem_bytes and mime_type:
+            image_parts = [{"mime_type": mime_type, "data": imagem_bytes}]
+            response = model.generate_content([prompt, image_parts[0]])
+        else:
+            response = model.generate_content(prompt)
+            
         return response.text
     except Exception as e:
         print(f"Erro no Gemini: {e}")
