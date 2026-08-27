@@ -1,7 +1,7 @@
+import base64
 import os
 import requests
 from flask import Flask, request
-import google.generativeai as genai
 
 app = Flask(__name__)
 
@@ -13,9 +13,6 @@ CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
 # Configurações do Afiliado e Gemini
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "102030brn2586-20"
-
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 # CATÁLOGO DE PRODUTOS
 CATALOGO = [
@@ -48,11 +45,11 @@ CATALOGO = [
 
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
-    """Processa texto e/ou imagens usando o Gemini 1.5 Flash."""
+    """Processa texto e imagem fazendo chamada HTTP direta à API do Gemini."""
     if not GEMINI_API_KEY:
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
-    prompt = f"""
+    prompt_texto = f"""
     Você é o Caramelo Bot, um assistente virtual simpático, divertido e prestativo especializado em ofertas da Amazon Brasil.
     
     Catálogo de ofertas em destaque:
@@ -69,18 +66,33 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     Mensagem do cliente: "{mensagem_cliente}"
     """
 
+    parts = [{"text": prompt_texto}]
+
+    # Adiciona a imagem em Base64 se houver foto enviada no WhatsApp
+    if imagem_bytes and mime_type:
+        img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
+        parts.append(
+            {"inline_data": {"mime_type": mime_type, "data": img_b64}}
+        )
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    payload = {"contents": [{"parts": parts}]}
+    headers = {"Content-Type": "application/json"}
+
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        
-        if imagem_bytes and mime_type:
-            image_parts = [{"mime_type": mime_type, "data": imagem_bytes}]
-            response = model.generate_content([prompt, image_parts[0]])
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        res_json = response.json()
+
+        if "candidates" in res_json and len(res_json["candidates"]) > 0:
+            texto_resposta = res_json["candidates"][0]["content"]["parts"][0][
+                "text"
+            ]
+            return texto_resposta
         else:
-            response = model.generate_content(prompt)
-            
-        return response.text
+            print(f"Erro no retorno do Gemini: {res_json}")
+            return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
     except Exception as e:
-        print(f"Erro no Gemini: {e}")
+        print(f"Erro na requisição HTTP do Gemini: {e}")
         return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
 
@@ -99,7 +111,7 @@ def webhook():
         imagem_bytes = None
         mime_type = None
 
-        # Captura texto da mensagem
+        # Captura texto
         if "text" in data and isinstance(data["text"], dict):
             user_message = data["text"].get("message", "")
         elif "body" in data:
@@ -127,21 +139,23 @@ def webhook():
         if not user_message and not imagem_bytes:
             user_message = "Olá!"
 
-        # Processa resposta no Gemini
+        # Processa resposta no Gemini via HTTP
         resposta_bot = processar_resposta(
             user_message, imagem_bytes, mime_type
         )
 
         # Envia de volta para a Z-API
-        url = f"https://api.z-api.io/instances/{INSTANCE_ID}/token/{INSTANCE_TOKEN}/send-text"
-        payload = {"phone": phone, "message": resposta_bot}
-        headers = {
+        url_zapi = f"https://api.z-api.io/instances/{INSTANCE_ID}/token/{INSTANCE_TOKEN}/send-text"
+        payload_zapi = {"phone": phone, "message": resposta_bot}
+        headers_zapi = {
             "Content-Type": "application/json",
             "Client-Token": CLIENT_TOKEN,
         }
 
         try:
-            requests.post(url, json=payload, headers=headers, timeout=10)
+            requests.post(
+                url_zapi, json=payload_zapi, headers=headers_zapi, timeout=10
+            )
         except Exception as e:
             print(f"Erro ao enviar via Z-API: {e}")
 
