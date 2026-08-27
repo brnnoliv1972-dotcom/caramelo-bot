@@ -45,7 +45,6 @@ CATALOGO = [
 
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
-    """Processa texto e imagem fazendo chamada HTTP direta à API do Gemini."""
     if not GEMINI_API_KEY:
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
@@ -68,7 +67,6 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
 
     parts = [{"text": prompt_texto}]
 
-    # Adiciona a imagem em Base64 se houver foto enviada no WhatsApp
     if imagem_bytes and mime_type:
         img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
         parts.append(
@@ -84,15 +82,11 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         res_json = response.json()
 
         if "candidates" in res_json and len(res_json["candidates"]) > 0:
-            texto_resposta = res_json["candidates"][0]["content"]["parts"][0][
-                "text"
-            ]
-            return texto_resposta
+            return res_json["candidates"][0]["content"]["parts"][0]["text"]
         else:
-            print(f"Erro no retorno do Gemini: {res_json}")
             return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
     except Exception as e:
-        print(f"Erro na requisição HTTP do Gemini: {e}")
+        print(f"Erro na requisição: {e}")
         return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
 
@@ -111,21 +105,16 @@ def webhook():
         imagem_bytes = None
         mime_type = None
 
-        # Captura texto
         if "text" in data and isinstance(data["text"], dict):
             user_message = data["text"].get("message", "")
         elif "body" in data:
             user_message = data.get("body", "")
 
-        # Captura imagem
         if "image" in data and isinstance(data["image"], dict):
             image_info = data["image"]
-            caption = image_info.get("caption")
-            if caption:
-                user_message = caption
-            else:
-                user_message = "O que é este produto da foto?"
-
+            user_message = image_info.get(
+                "caption", "O que é este produto da foto?"
+            )
             image_url = image_info.get("imageUrl")
             if image_url:
                 try:
@@ -139,12 +128,10 @@ def webhook():
         if not user_message and not imagem_bytes:
             user_message = "Olá!"
 
-        # Processa resposta no Gemini via HTTP
         resposta_bot = processar_resposta(
             user_message, imagem_bytes, mime_type
         )
 
-        # Envia de volta para a Z-API
         url_zapi = f"https://api.z-api.io/instances/{INSTANCE_ID}/token/{INSTANCE_TOKEN}/send-text"
         payload_zapi = {"phone": phone, "message": resposta_bot}
         headers_zapi = {
@@ -154,13 +141,14 @@ def webhook():
 
         try:
             requests.post(
-                url_zapi, json=payload_zapi, headers=headers_zapi, timeout=10
+                url_zapi, json=payload_zapi, headers_zapi=headers_zapi, timeout=10
             )
         except Exception as e:
-            print(f"Erro ao enviar via Z-API: {e}")
+            print(f"Erro Z-API: {e}")
 
     return "OK", 200
 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
