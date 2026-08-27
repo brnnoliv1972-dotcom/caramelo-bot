@@ -74,7 +74,8 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             {"inline_data": {"mime_type": mime_type, "data": img_b64}}
         )
 
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # Modelo atualizado para gemini-2.5-flash
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
 
@@ -153,3 +154,7 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
+   
+    
+   
