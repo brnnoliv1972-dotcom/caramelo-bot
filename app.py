@@ -4,9 +4,12 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# ID e Token da sua instância Z-API
+# Credenciais da Instância
 INSTANCE_ID = "3F82F1A840F592680627F2CCB21A3920"
 INSTANCE_TOKEN = "593C64792C43EADAA3AC305F"
+
+# COLE AQUI O CÓDIGO DE SEGURANÇA QUE CHEGOU NO SEU WHATSAPP
+CLIENT_TOKEN = "COLE_SEU_CODIGO_AQUI"
 
 
 @app.route("/", methods=["GET"])
@@ -21,7 +24,6 @@ def webhook():
     print("Payload recebido da Z-API:", data)
 
     if data:
-        # Verifica se a mensagem veio de outra pessoa (não do próprio bot)
         is_from_me = data.get("fromMe", False)
 
         if not is_from_me:
@@ -34,7 +36,11 @@ def webhook():
                 "message": "Olá! Seja bem-vindo ao Caramelo Bot. Confira nossas ofertas na Amazon: https://amazon.com.br",
             }
 
-            headers = {"Content-Type": "application/json"}
+            # Envia o Client-Token autenticado exigido pela Z-API
+            headers = {
+                "Content-Type": "application/json",
+                "Client-Token": CLIENT_TOKEN,
+            }
 
             try:
                 response = requests.post(
