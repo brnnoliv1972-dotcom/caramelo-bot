@@ -1,10 +1,11 @@
+Python
 import os
 import requests
 from flask import Flask, request
 
 app = Flask(__name__)
 
-# Pegando as variáveis do Render
+# Recupera as chaves salvas nas variáveis de ambiente do Render
 ZAPI_INSTANCE_ID = os.environ.get("ZAPI_INSTANCE_ID")
 ZAPI_TOKEN = os.environ.get("ZAPI_TOKEN")
 
@@ -18,27 +19,39 @@ def home():
 def webhook():
     data = request.get_json()
 
-    # Verifica se a mensagem veio de outra pessoa (não enviada por você)
-    if data and not data.get("fromMe", True):
-        phone = data.get("phone")  # Número de quem mandou a mensagem
+    # Exibe no log tudo o que a Z-API enviou (ótimo para depuração)
+    print("Payload recebido da Z-API:", data)
 
-        # URL exata de disparo da Z-API
-        url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}/send-text"
+    if data:
+        # Garante que ignora mensagens enviadas pelo próprio robô
+        is_from_me = data.get("fromMe", False)
 
-        payload = {
-            "phone": phone,
-            "message": "Olá! Seja bem-vindo ao Caramelo Bot. Confira nossas ofertas na Amazon: https://amazon.com.br",
-        }
+        if not is_from_me:
+            phone = data.get("phone")  # Número do remetente
 
-        headers = {"Content-Type": "application/json"}
+            # Monta a URL de envio da Z-API
+            url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}/send-text"
 
-        # Dispara a resposta via Z-API
-        response = requests.post(url, json=payload, headers=headers)
-        print(f"Status do disparo Z-API: {response.status_code}")
-        print(f"Resposta Z-API: {response.text}") print(f"Status do disparo Z-API: {response.status_code}") e print(f"Resposta Z-API: {response.text}")
+            payload = {
+                "phone": phone,
+                "message": "Olá! Seja bem-vindo ao Caramelo Bot. Confira nossas ofertas na Amazon: https://amazon.com.br",
+            }
+
+            headers = {"Content-Type": "application/json"}
+
+            # Faz a requisição de envio de volta para a Z-API
+            try:
+                response = requests.post(
+                    url, json=payload, headers=headers, timeout=10
+                )
+                print(f"Status do disparo Z-API: {response.status_code}")
+                print(f"Resposta detalhada Z-API: {response.text}")
+            except Exception as e:
+                print(f"Erro ao tentar enviar mensagem via Z-API: {e}")
+        else:
+            print("Mensagem ignorada: enviada pelo próprio robô (fromMe=True).")
 
     return "OK", 200
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
