@@ -45,6 +45,7 @@ CATALOGO = [
 
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
+    """Processa texto e imagem fazendo chamada HTTP direta à API do Gemini."""
     if not GEMINI_API_KEY:
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
@@ -84,6 +85,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         if "candidates" in res_json and len(res_json["candidates"]) > 0:
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
         else:
+            print(f"Erro no retorno do Gemini: {res_json}")
             return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
     except Exception as e:
         print(f"Erro na requisição: {e}")
@@ -140,6 +142,7 @@ def webhook():
         }
 
         try:
+            # CORRIGIDO AQUI: headers=headers_zapi
             requests.post(
                 url_zapi, json=payload_zapi, headers=headers_zapi, timeout=10
             )
