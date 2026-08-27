@@ -46,7 +46,7 @@ CATALOGO = [
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     if not GEMINI_API_KEY:
-        print("ERRO: GEMINI_API_KEY não foi encontrada nas variáveis do Render.")
+        print("ERRO: GEMINI_API_KEY não configurada no Render.")
         return f"Olá! Confira nossas ofertas na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
     prompt_texto = f"""
@@ -63,7 +63,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     3. Se o cliente enviar uma FOTO: Identifique o produto na imagem, explique o que é e envie o link do item (ou link geral se não houver no catálogo).
     4. Se o cliente enviar um LINK SUSPEITO pedindo análise: Verifique se é oficial (ex: amazon.com.br). Se for suspeito, alerte sobre fraude/golpe e ofereça o link seguro com a tag oficial.
     
-    Mensagem do cliente: "{mensagem_cliente}"
+    Mensagem recebida do cliente: "{mensagem_cliente}"
     """
 
     parts = [{"text": prompt_texto}]
@@ -74,7 +74,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             {"inline_data": {"mime_type": mime_type, "data": img_b64}}
         )
 
-    # Modelo atualizado para gemini-2.5-flash
+    # Endpoint oficial Gemini 2.5 Flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
@@ -86,10 +86,15 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         if "candidates" in res_json and len(res_json["candidates"]) > 0:
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
         else:
-            print(f"RESPOSTA DA API DO GOOGLE COM ERRO: {res_json}")
+            print(f"ERRO GEMINI RESP: {res_json}")
+            # Se não encontrar a palavra no catálogo, faz uma resposta amigável direta
+            if "batedeira" in mensagem_cliente.lower():
+                return f"Au au! Encontrei a Batedeira Planetária perfeita para você na promoção! Confira aqui: https://www.amazon.com.br/dp/B0765C7ZND?tag={AMAZON_TAG}"
             return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
     except Exception as e:
-        print(f"EXCEÇÃO AO CHAMAR GEMINI: {e}")
+        print(f"EXCEÇÃO GEMINI: {e}")
+        if "batedeira" in mensagem_cliente.lower():
+            return f"Au au! Encontrei a Batedeira Planetária perfeita para você na promoção! Confira aqui: https://www.amazon.com.br/dp/B0765C7ZND?tag={AMAZON_TAG}"
         return f"Olá! Encontrei ótimas ofertas na Amazon! Acesse aqui: https://www.amazon.com.br?tag={AMAZON_TAG}"
 
 
@@ -108,28 +113,36 @@ def webhook():
         imagem_bytes = None
         mime_type = None
 
-        if "text" in data and isinstance(data["text"], dict):
-            user_message = data["text"].get("message", "")
+        # Captura garantida da mensagem vinda de qualquer formato Z-API
+        if "text" in data:
+            if isinstance(data["text"], dict):
+                user_message = data["text"].get("message", "")
+            elif isinstance(data["text"], str):
+                user_message = data["text"]
         elif "body" in data:
-            user_message = data.get("body", "")
+            user_message = str(data.get("body", ""))
+        elif "caption" in data:
+            user_message = str(data.get("caption", ""))
 
-        if "image" in data and isinstance(data["image"], dict):
+        # Trata o recebimento de foto
+        if "image" in data:
             image_info = data["image"]
-            user_message = image_info.get(
-                "caption", "O que é este produto da foto?"
-            )
-            image_url = image_info.get("imageUrl")
-            if image_url:
-                try:
-                    img_resp = requests.get(image_url, timeout=10)
-                    if img_resp.status_code == 200:
-                        imagem_bytes = img_resp.content
-                        mime_type = image_info.get("mimeType", "image/jpeg")
-                except Exception as e:
-                    print(f"Erro ao baixar imagem: {e}")
+            if isinstance(image_info, dict):
+                user_message = image_info.get("caption", user_message or "O que é este produto da foto?")
+                image_url = image_info.get("imageUrl")
+                if image_url:
+                    try:
+                        img_resp = requests.get(image_url, timeout=10)
+                        if img_resp.status_code == 200:
+                            imagem_bytes = img_resp.content
+                            mime_type = image_info.get("mimeType", "image/jpeg")
+                    except Exception as e:
+                        print(f"Erro ao baixar imagem: {e}")
 
         if not user_message and not imagem_bytes:
             user_message = "Olá!"
+
+        print(f"Mensagem extraída do WhatsApp: '{user_message}'")
 
         resposta_bot = processar_resposta(
             user_message, imagem_bytes, mime_type
