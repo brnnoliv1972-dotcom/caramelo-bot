@@ -13,7 +13,7 @@ CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
 # Configurações do Afiliado e Gemini
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "102030brn2586-20"
-ML_TAG = "102030brn2586-20"  # Substitua pela sua Tag do Mercado Livre quando tiver
+ML_TAG = "decl20240321112857"
 
 # DOMÍNIOS SEGUROS PARA VERIFICAÇÃO ANTIFRAUDE
 DOMINIOS_SEGUROS = [
