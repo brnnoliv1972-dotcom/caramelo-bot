@@ -41,7 +41,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         )
 
     termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
-    amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo else "ofertas")
+    amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo and termo_limpo != "O que é isso? Ache o melhor preço para este produto na foto." else "ofertas")
 
     if not GEMINI_API_KEY:
         return (
@@ -53,11 +53,11 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
 
     prompt_texto = f"""
     Você é o Caramelo Bot, o cão farejador de ofertas seguras e curador de elite do Caramelo Shop! Seu tom é simpático, malandro, alegre e divertido.
-    O usuário enviou a seguinte busca: "{mensagem_cliente}"
+    O usuário enviou a seguinte busca ou imagem de produto: "{mensagem_cliente}"
     
     INSTRUÇÕES RÍGIDAS:
     1. Comece com uma saudação alegre e malandra de cachorro (ex: "Au au! 🐾 O Caramelo farejou aqui e encontrei a nata das ofertas!").
-    2. Como você é um especialista antifraude, **NÃO** mande links genéricos de buscas lotadas de opções. Selecione o **melhor produto específico** com base na busca, cite o nome dele, comente sobre a reputação (ex: *"Com milhares de avaliações positivas e selo de confiança"*), e entregue o link certeiro.
+    2. Como você é um especialista antifraude, **NÃO** mande links genéricos de buscas lotadas de opções. Selecione o **melhor produto específico** com base no que o usuário pediu ou mandou na foto, cite o nome dele, comente sobre a reputação (ex: *"Com milhares de avaliações positivas e selo de confiança"*), e entregue o link certeiro.
     3. Apresente os links oficiais abaixo EXATAMENTE UMA VEZ cada:
         - Amazon: {amz_direct}
         - Mercado Livre: {ml_direct}
@@ -124,11 +124,24 @@ def webhook():
             message_obj = message_obj[0] if isinstance(message_obj[0], dict) else {}
 
         user_message = ""
+        imagem_bytes = None
+        mime_type = None
+
         if isinstance(message_obj, dict):
             if "conversation" in message_obj:
                 user_message = message_obj["conversation"]
             elif "extendedTextMessage" in message_obj and isinstance(message_obj["extendedTextMessage"], dict):
                 user_message = message_obj["extendedTextMessage"].get("text", "")
+            elif "imageMessage" in message_obj and isinstance(message_obj["imageMessage"], dict):
+                img_data = message_obj["imageMessage"]
+                user_message = img_data.get("caption", "Jogo de mesa e cadeira")
+                # Tentativa de pegar a imagem se vier em base64 da Evolution
+                if "base64" in img_data:
+                    try:
+                        imagem_bytes = base64.b64decode(img_data["base64"])
+                        mime_type = img_data.get("mimetype", "image/jpeg")
+                    except Exception:
+                        pass
 
         if not user_message and isinstance(data, dict):
             if "text" in data:
@@ -139,10 +152,10 @@ def webhook():
             elif "body" in data:
                 user_message = str(data.get("body", ""))
 
-        if not user_message:
+        if not user_message and not imagem_bytes:
             user_message = "Olá!"
 
-        resposta_bot = processar_resposta(user_message)
+        resposta_bot = processar_resposta(user_message, imagem_bytes=imagem_bytes, mime_type=mime_type)
         
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
         headers = {"apikey": API_KEY, "Content-Type": "application/json"}
