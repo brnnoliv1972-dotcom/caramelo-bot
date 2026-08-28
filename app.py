@@ -176,7 +176,8 @@ def webhook():
         
         # URL formatada especificamente para a Evolution API v2.x
        # Rota padrão de envio de texto na Evolution v2
-        url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+       # URL limpa sem o nome da instância no final
+        url_envio = f"{EVOLUTION_URL}/message/sendText"
 
         headers = {
             "apikey": API_KEY,
@@ -185,35 +186,9 @@ def webhook():
 
         numero_limpo = "".join(filter(str.isdigit, str(phone)))
 
+        # O nome da instância vai aqui dentro de forma segura
         payload_envio = {
+            "instance": EVOLUTION_INSTANCE,
             "number": numero_limpo,
             "text": resposta_bot
-        }
-
-        headers = {
-            "apikey": API_KEY,
-            "Content-Type": "application/json"
-        }
-
-        numero_limpo = "".join(filter(str.isdigit, str(phone)))
-
-        payload_envio = {
-            "number": numero_limpo,
-            "text": resposta_bot
-        }
-
-        try:
-            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
-            print(f"Status do Envio: {resp_envio.status_code}")
-        except Exception as err_envio:
-            print(f"Erro ao enviar requisição HTTP: {err_envio}")
-
-        return "OK", 200
-
-    except Exception as e:
-        print(f"Erro no processamento do webhook: {e}")
-        return "OK", 200
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+        } 
