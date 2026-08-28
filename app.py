@@ -6,9 +6,9 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Configurações da Evolution API
-EVOLUTION_URL = os.environ.get("ZAPI_URL") or os.environ.get("EVOLUTION_URL") or "http://evolution-api-production-5008.up.railway.app"
-EVOLUTION_INSTANCE = os.environ.get("ZAPI_INSTANCE") or os.environ.get("EVOLUTION_INSTANCE") or "atendimento"
+# Configurações de Conexão (Evolution API)
+EVOLUTION_URL = os.environ.get("EVOLUTION_URL") or os.environ.get("ZAPI_URL") or "https://evolution-api-production-5008.up.railway.app"
+EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE") or os.environ.get("ZAPI_INSTANCE") or "atendimento"
 API_KEY = (
     os.getenv("EVOLUTION_API_KEY")
     or os.getenv("ZAPI_TOKEN")
@@ -16,12 +16,11 @@ API_KEY = (
     or "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
 )
 
-# Configurações do Afiliado e Gemini
+# Configurações do Afiliado e IA
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "102030brn2586-20"
 ML_TAG = "decl20240321112857"
 
-# DOMÍNIOS SEGUROS PARA VERIFICAÇÃO ANTIFRAUDE
 DOMINIOS_SEGUROS = [
     "amazon.com.br", "mercadolivre.com.br", "mercadolibre.com",
     "shopee.com.br", "magazineluiza.com.br", "casasbahia.com.br",
@@ -29,22 +28,22 @@ DOMINIOS_SEGUROS = [
 ]
 
 def verificar_link_suspeito(texto):
-    """Verifica se há um link na mensagem e se ele pertence a uma loja oficial."""
+    """Filtro antifraude para verificar se o link pertence a uma loja segura."""
     if "http://" in texto or "https://" in texto:
         eh_seguro = any(dominio in texto.lower() for dominio in DOMINIOS_SEGUROS)
         if not eh_seguro:
-            return True  # É um link suspeito!
+            return True
     return False
 
 def gerar_links_busca(produto_nome):
-    """Gera links dinâmicos de busca para Amazon e Mercado Livre de qualquer produto."""
+    """Gera links dinâmicos com a sua tag de afiliado."""
     termo_encoded = urllib.parse.quote(produto_nome.strip())
     link_amz = f"https://www.amazon.com.br/s?k={termo_encoded}&tag={AMAZON_TAG}"
     link_ml = f"https://lista.mercadolivre.com.br/{termo_encoded}#matt={ML_TAG}"
     return link_amz, link_ml
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
-    # 1. VERIFICAÇÃO ANTIFRAUDE DE LINK SUSPEITO
+    # 1. Antifraude
     if verificar_link_suspeito(mensagem_cliente):
         return (
             "🚨 *ALERTA DO CARAMELO BOT!* 🐾\n\n"
@@ -54,7 +53,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"Compre com total segurança na loja oficial Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
         )
 
-    # 2. GERAR LINKS DINÂMICOS
+    # 2. Geração dos links de busca
     termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
     amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo else "ofertas")
 
@@ -71,15 +70,12 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     
     O usuário enviou a seguinte mensagem/produto: "{mensagem_cliente}"
     
-    SEUS LINKS OFICIAIS GERADOS PARA ESTE PRODUTO SÃO:
-    - Link Amazon: {amz_direct}
-    - Link Mercado Livre: {ml_direct}
-    
-    INSTRUÇÕES DE RESPOSTA:
-    1. Sempre comece com uma saudação alegre de cachorro (ex: "Au au!", "AU AU! PERA AI!").
-    2. Apresente SEMPRE os dois links de busca acima (Amazon e Mercado Livre) formatados com clareza.
-    3. Adicione elementos simbólicos de confiança para valorizar a busca (ex: ⭐️ Produto de alta avaliação, 🏆 Vendedor Verificado / Loja Oficial, 📦 Envio Garantido).
-    4. Mantenha a resposta curta, direta e amigável.
+    INSTRUÇÕES RÍGIDAS DE FORMATO:
+    1. Comece com uma saudação alegre de cachorro (ex: "Au au! 🐾").
+    2. Apresente os links de busca abaixo EXATAMENTE UMA VEZ cada:
+       - Amazon: {amz_direct}
+       - Mercado Livre: {ml_direct}
+    3. Mantenha a resposta objetiva e amigável.
     """
 
     parts = [{"text": prompt_texto}]
@@ -88,7 +84,6 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
         parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
 
-    # Modelo Gemini 2.5 Flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
@@ -115,18 +110,15 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"🛡️ *Compre com segurança em lojas oficiais!*"
         )
 
-
 @app.route("/", methods=["GET"])
 def home():
-    return "Caramelo Bot Antifraude + Visão IA Ativo!"
-
+    return "Caramelo Bot Antifraude + IA Ativo!"
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
         data = request.get_json() or {}
 
-        # Suporte para formato de Webhook da Evolution API e legado Z-API
         from_me = data.get("fromMe", False) or data.get("data", {}).get("key", {}).get("fromMe", False)
         
         if not from_me:
@@ -161,10 +153,7 @@ def webhook():
                 user_message = "Olá!"
 
             if phone:
-                # 1. Processa a resposta no Gemini
                 resposta_bot = processar_resposta(user_message, imagem_bytes, mime_type)
-
-                # 2. Configurações de Envio - Evolution API
                 url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
 
                 headers = {
@@ -191,7 +180,8 @@ def webhook():
         print(f"Erro no processamento do webhook: {e}")
         return "OK", 200
 
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+   
