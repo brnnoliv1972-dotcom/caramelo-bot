@@ -7,8 +7,8 @@ from flask import Flask, request
 app = Flask(__name__)
 
 # Configurações de Conexão (Evolution API)
-# Limpa automaticamente colchetes, aspas e links Markdown da URL
 raw_url = os.environ.get("EVOLUTION_URL") or os.environ.get("ZAPI_URL") or "https://evolution-api-production-5008.up.railway.app"
+# Força a remoção de qualquer colchete, parêntese ou markdown acidental
 if "](" in raw_url:
     raw_url = raw_url.split("](")[0]
 EVOLUTION_URL = raw_url.replace("[", "").replace("]", "").replace("(", "").replace(")", "").strip(" '\"")
@@ -119,9 +119,9 @@ def webhook():
     try:
         raw_payload = request.get_json(silent=True) or {}
 
-        # Trata payload quando enviada dentro de uma lista
+        # Garante tratamento seguro se a payload for uma Lista [ ... ]
         if isinstance(raw_payload, list):
-            data = raw_payload[0] if len(raw_payload) > 0 else {}
+            data = raw_payload[0] if len(raw_payload) > 0 and isinstance(raw_payload[0], dict) else {}
         elif isinstance(raw_payload, dict):
             data = raw_payload
         else:
@@ -132,7 +132,7 @@ def webhook():
 
         sub_data = data.get("data", {})
         if isinstance(sub_data, list):
-            sub_data = sub_data[0] if len(sub_data) > 0 else {}
+            sub_data = sub_data[0] if len(sub_data) > 0 and isinstance(sub_data[0], dict) else {}
         if not isinstance(sub_data, dict):
             sub_data = {}
 
@@ -150,7 +150,7 @@ def webhook():
 
             message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
             if isinstance(message_obj, list):
-                message_obj = message_obj[0] if len(message_obj) > 0 else {}
+                message_obj = message_obj[0] if len(message_obj) > 0 and isinstance(message_obj[0], dict) else {}
             
             if isinstance(message_obj, dict):
                 if "conversation" in message_obj:
