@@ -9,7 +9,12 @@ app = Flask(__name__)
 # Configurações da Evolution API
 EVOLUTION_URL = os.environ.get("ZAPI_URL") or os.environ.get("EVOLUTION_URL") or "http://evolution-api-production-5008.up.railway.app"
 EVOLUTION_INSTANCE = os.environ.get("ZAPI_INSTANCE") or os.environ.get("EVOLUTION_INSTANCE") or "atendimento"
-EVOLUTION_API_KEY = os.environ.get("ZAPI_TOKEN") or os.environ.get("EVOLUTION_API_KEY") or os.environ.get("ZAPI_CLIENT_TOKEN") or "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
+API_KEY = (
+    os.getenv("EVOLUTION_API_KEY")
+    or os.getenv("ZAPI_TOKEN")
+    or os.getenv("ZAPI_CLIENT_TOKEN")
+    or "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
+)
 
 # Configurações do Afiliado e Gemini
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -125,18 +130,15 @@ def webhook():
         from_me = data.get("fromMe", False) or data.get("data", {}).get("key", {}).get("fromMe", False)
         
         if not from_me:
-            # Extração de dados da Evolution API (MESSAGES_UPSERT)
             key_data = data.get("data", {}).get("key", {}) if "data" in data else {}
             remote_jid = key_data.get("remoteJid", "")
             
-            # Extração do telefone
-            phone = data.get("phone") or remote_jid.split("@")[0] if "@" in remote_jid else ""
+            phone = data.get("phone") or (remote_jid.split("@")[0] if "@" in remote_jid else "")
             
             user_message = ""
             imagem_bytes = None
             mime_type = None
 
-            # Leitura da mensagem da Evolution API
             message_obj = data.get("data", {}).get("message", {}) if "data" in data else data
             
             if "conversation" in message_obj:
@@ -151,7 +153,6 @@ def webhook():
             elif "body" in data:
                 user_message = str(data.get("body", ""))
 
-            # Leitura de Imagem (se houver)
             if "imageMessage" in message_obj or "image" in data:
                 img_data = message_obj.get("imageMessage", {}) or data.get("image", {})
                 user_message = img_data.get("caption", user_message or "O que é este produto da foto?")
@@ -160,14 +161,14 @@ def webhook():
                 user_message = "Olá!"
 
             if phone:
-                # 1. Processa a resposta no Gemini/Antifraude
+                # 1. Processa a resposta no Gemini
                 resposta_bot = processar_resposta(user_message, imagem_bytes, mime_type)
 
-                # 2. Envia a resposta pela Evolution API
+                # 2. Configurações de Envio - Evolution API
                 url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
-                
+
                 headers = {
-                    "apikey": EVOLUTION_API_KEY,
+                    "apikey": API_KEY,
                     "Content-Type": "application/json"
                 }
 
@@ -178,8 +179,11 @@ def webhook():
                     "text": resposta_bot
                 }
 
-                resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
-                print(f"Status do Envio: {resp_envio.status_code}")
+                try:
+                    resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
+                    print(f"Status do Envio: {resp_envio.status_code}")
+                except Exception as err_envio:
+                    print(f"Erro ao enviar requisição HTTP: {err_envio}")
 
         return "OK", 200
 
@@ -191,3 +195,6 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+
+   
