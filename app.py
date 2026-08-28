@@ -7,9 +7,11 @@ from flask import Flask, request
 app = Flask(__name__)
 
 # Configurações de Conexão (Evolution API)
-# Limpa automaticamente qualquer caractere/markdown extra da URL
+# Limpa automaticamente colchetes, aspas e links Markdown da URL
 raw_url = os.environ.get("EVOLUTION_URL") or os.environ.get("ZAPI_URL") or "https://evolution-api-production-5008.up.railway.app"
-EVOLUTION_URL = raw_url.split("]")[0].split(")")[0].strip("[]'\" ")
+if "](" in raw_url:
+    raw_url = raw_url.split("](")[0]
+EVOLUTION_URL = raw_url.replace("[", "").replace("]", "").replace("(", "").replace(")", "").strip(" '\"")
 
 EVOLUTION_INSTANCE = (os.environ.get("EVOLUTION_INSTANCE") or os.environ.get("ZAPI_INSTANCE") or "atendimento").strip()
 API_KEY = (
@@ -115,11 +117,15 @@ def home():
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
-        data = request.get_json() or {}
+        raw_payload = request.get_json(silent=True) or {}
 
-        # Trata caso a payload principal seja uma lista
-        if isinstance(data, list):
-            data = data[0] if len(data) > 0 else {}
+        # Trata payload quando enviada dentro de uma lista
+        if isinstance(raw_payload, list):
+            data = raw_payload[0] if len(raw_payload) > 0 else {}
+        elif isinstance(raw_payload, dict):
+            data = raw_payload
+        else:
+            data = {}
 
         if not isinstance(data, dict):
             return "OK", 200
@@ -127,7 +133,6 @@ def webhook():
         sub_data = data.get("data", {})
         if isinstance(sub_data, list):
             sub_data = sub_data[0] if len(sub_data) > 0 else {}
-
         if not isinstance(sub_data, dict):
             sub_data = {}
 
@@ -135,9 +140,9 @@ def webhook():
         
         if not from_me:
             key_data = sub_data.get("key", {}) if isinstance(sub_data, dict) else {}
-            remote_jid = key_data.get("remoteJid", "")
+            remote_jid = key_data.get("remoteJid", "") if isinstance(key_data, dict) else ""
             
-            phone = data.get("phone") or (remote_jid.split("@")[0] if "@" in remote_jid else "")
+            phone = data.get("phone") or (remote_jid.split("@")[0] if "@" in str(remote_jid) else "")
             
             user_message = ""
             imagem_bytes = None
@@ -150,7 +155,7 @@ def webhook():
             if isinstance(message_obj, dict):
                 if "conversation" in message_obj:
                     user_message = message_obj["conversation"]
-                elif "extendedTextMessage" in message_obj:
+                elif "extendedTextMessage" in message_obj and isinstance(message_obj["extendedTextMessage"], dict):
                     user_message = message_obj["extendedTextMessage"].get("text", "")
             
             if not user_message and isinstance(data, dict):
