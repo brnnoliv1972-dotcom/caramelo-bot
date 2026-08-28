@@ -49,19 +49,20 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"Compre com total segurança na loja oficial Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
         )
 
-    # 2. GERAR LINKS DINÂMICOS CASO O GEMINI NÃO ESTEJA DISPONÍVEL OU FALHE
+    # 2. GERAR LINKS DINÂMICOS
     termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
     amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo else "ofertas")
 
     if not GEMINI_API_KEY:
         return (
-            f"Au au! 🐾 Achei opções verificadas para o produto digitado:\n\n"
-            f"📦 **Amazon:** {amz_direct}\n"
-            f"🟡 **Mercado Livre:** {ml_direct}"
+            f"Au au! 🐾 O Caramelo farejou os menores preços pra você!\n\n"
+            f"📦 **Opção na Amazon:**\n👉 {amz_direct}\n\n"
+            f"🟡 **Opção no Mercado Livre:**\n👉 {ml_direct}\n\n"
+            f"🛡️ *Compre com segurança em lojas oficiais!*"
         )
 
     prompt_texto = f"""
-    Você é o Caramelo Bot, o cão farejador de ofertas seguras do Caramelo Shop! Seu tom é simpático, alegre, divertido e muito solícito.
+    Você é o Caramelo Bot, o cão farejador de ofertas seguras do Caramelo Shop! Seu tom é simpático, alegre e divertido.
     
     O usuário enviou a seguinte mensagem/produto: "{mensagem_cliente}"
     
@@ -73,8 +74,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     1. Sempre comece com uma saudação alegre de cachorro (ex: "Au au!", "AU AU! PERA AI!").
     2. Apresente SEMPRE os dois links de busca acima (Amazon e Mercado Livre) formatados com clareza.
     3. Adicione elementos simbólicos de confiança para valorizar a busca (ex: ⭐️ Produto de alta avaliação, 🏆 Vendedor Verificado / Loja Oficial, 📦 Envio Garantido).
-    4. Se o usuário enviou uma FOTO: Identifique o item da foto e use os links acima para recomendar onde comprar.
-    5. Mantenha a resposta curta, direta e amigável.
+    4. Mantenha a resposta curta, direta e amigável.
     """
 
     parts = [{"text": prompt_texto}]
@@ -83,12 +83,13 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
         parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # Modelo Gemini 2.5 Flash Atualizado
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        response = requests.post(url, json=payload, headers=headers, timeout=12)
         res_json = response.json()
 
         if "candidates" in res_json and len(res_json["candidates"]) > 0:
@@ -117,61 +118,63 @@ def home():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    data = request.get_json()
+    try:
+        data = request.get_json() or {}
 
-    if data and not data.get("fromMe", False):
-        phone = data.get("phone")
-        user_message = ""
-        imagem_bytes = None
-        mime_type = None
+        if not data.get("fromMe", False):
+            phone = data.get("phone")
+            user_message = ""
+            imagem_bytes = None
+            mime_type = None
 
-        if "text" in data:
-            if isinstance(data["text"], dict):
-                user_message = data["text"].get("message", "")
-            elif isinstance(data["text"], str):
-                user_message = data["text"]
-        elif "body" in data:
-            user_message = str(data.get("body", ""))
-        elif "caption" in data:
-            user_message = str(data.get("caption", ""))
+            if "text" in data:
+                if isinstance(data["text"], dict):
+                    user_message = data["text"].get("message", "")
+                elif isinstance(data["text"], str):
+                    user_message = data["text"]
+            elif "body" in data:
+                user_message = str(data.get("body", ""))
+            elif "caption" in data:
+                user_message = str(data.get("caption", ""))
 
-        if "image" in data:
-            image_info = data["image"]
-            if isinstance(image_info, dict):
-                user_message = image_info.get(
-                    "caption", user_message or "O que é este produto da foto?"
-                )
-                image_url = image_info.get("imageUrl")
-                if image_url:
-                    try:
-                        img_resp = requests.get(image_url, timeout=10)
-                        if img_resp.status_code == 200:
-                            imagem_bytes = img_resp.content
-                            mime_type = image_info.get("mimeType", "image/jpeg")
-                    except Exception as e:
-                        print(f"Erro imagem: {e}")
+            if "image" in data:
+                image_info = data["image"]
+                if isinstance(image_info, dict):
+                    user_message = image_info.get(
+                        "caption", user_message or "O que é este produto da foto?"
+                    )
+                    image_url = image_info.get("imageUrl")
+                    if image_url:
+                        try:
+                            img_resp = requests.get(image_url, timeout=10)
+                            if img_resp.status_code == 200:
+                                imagem_bytes = img_resp.content
+                                mime_type = image_info.get("mimeType", "image/jpeg")
+                        except Exception as e:
+                            print(f"Erro imagem: {e}")
 
-        if not user_message and not imagem_bytes:
-            user_message = "Olá!"
+            if not user_message and not imagem_bytes:
+                user_message = "Olá!"
 
-        resposta_bot = processar_resposta(user_message, imagem_bytes, mime_type)
+            resposta_bot = processar_resposta(user_message, imagem_bytes, mime_type)
 
-        url_zapi = f"https://api.z-api.io/instances/{INSTANCE_ID}/token/{INSTANCE_TOKEN}/send-text"
-        payload_zapi = {"phone": phone, "message": resposta_bot}
-        headers_zapi = {
-            "Content-Type": "application/json",
-            "Client-Token": CLIENT_TOKEN,
-        }
+            url_zapi = f"https://api.z-api.io/instances/{INSTANCE_ID}/token/{INSTANCE_TOKEN}/send-text"
+            payload_zapi = {"phone": phone, "message": resposta_bot}
+            headers_zapi = {
+                "Content-Type": "application/json",
+                "Client-Token": CLIENT_TOKEN,
+            }
 
-        try:
             requests.post(
                 url_zapi, json=payload_zapi, headers=headers_zapi, timeout=10
             )
-        except Exception as e:
-            print(f"Erro Z-API: {e}")
+
+    except Exception as err:
+        print(f"Erro no Webhook: {err}")
 
     return "OK", 200
 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
