@@ -6,7 +6,7 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Configurações Fixas e Limpas
+# Configurações Fixas e Limpas (sem depender de variáveis com erro)
 EVOLUTION_URL = "https://evolution-api-production-5008.up.railway.app"
 EVOLUTION_INSTANCE = "atendimento"
 API_KEY = "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
@@ -109,7 +109,7 @@ def webhook():
     try:
         raw_payload = request.get_json(silent=True) or {}
 
-        # Trata payload recebida como Lista [ {...} ]
+        # Trata payload quando enviada dentro de uma lista
         if isinstance(raw_payload, list):
             data = raw_payload[0] if len(raw_payload) > 0 and isinstance(raw_payload[0], dict) else {}
         elif isinstance(raw_payload, dict):
