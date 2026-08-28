@@ -167,7 +167,12 @@ def webhook():
 
         resposta_bot = processar_resposta(user_message)
         
-        url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+        url_envio = f"{EVOLUTION_URL}/message/sendText"
+        payload_envio = {
+            "instance": EVOLUTION_INSTANCE,
+            "number": numero_limpo,
+            "text": resposta_bot
+        }
 
         headers = {
             "apikey": API_KEY,
