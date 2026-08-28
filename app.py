@@ -6,10 +6,10 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Configurações de Conexão com URL 100% Sanitizada
-EVOLUTION_URL = "https://evolution-api-production-5008.up.railway.app"
-EVOLUTION_INSTANCE = "atendimento"
-API_KEY = "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
+# Configurações com fallback e leitura segura de variáveis de ambiente
+EVOLUTION_URL = os.environ.get("EVOLUTION_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
+EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE", "atendimento")
+API_KEY = os.environ.get("API_KEY", "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "102030brn2586-20"
@@ -171,12 +171,11 @@ def webhook():
         if not user_message:
             user_message = "Olá!"
 
-        # 6. Processa e envia a resposta para a URL rigorosamente formatada
+        # 6. Processa e envia a resposta
         resposta_bot = processar_resposta(user_message)
         
-        # Garante URL 100% limpa para evitar 'No connection adapters'
-        base_clean = "https://evolution-api-production-5008.up.railway.app".strip("/")
-        url_envio = f"{base_clean}/message/sendText/{EVOLUTION_INSTANCE}"
+        # URL formatada especificamente para a Evolution API v2.x
+        url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
 
         headers = {
             "apikey": API_KEY,
