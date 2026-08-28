@@ -99,6 +99,63 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"🟡 **Opção no Mercado Livre:**\n👉 {ml_direct}\n\n"
             f"🛡️ *Compre com segurança em lojas oficiais!*"
         )
+        
+
+    termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
+    amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo else "ofertas")
+
+    if not GEMINI_API_KEY:
+        return (
+            f"Au au! 🐾 O Caramelo farejou os menores preços pra você!\n\n"
+            f"📦 **Opção na Amazon:**\n👉 {amz_direct}\n\n"
+            f"🟡 **Opção no Mercado Livre:**\n👉 {ml_direct}\n\n"
+            f"🛡️ *Compre com segurança em lojas oficiais!*"
+        )
+
+    prompt_texto = f"""
+    Você é o Caramelo Bot, o cão farejador de ofertas seguras do Caramelo Shop! Seu tom é simpático, alegre e divertido.
+    
+    O usuário enviou a seguinte mensagem/produto: "{mensagem_cliente}"
+    
+    INSTRUÇÕES RÍGIDAS DE FORMATO:
+    1. Comece com uma saudação alegre de cachorro (ex: "Au au! 🐾").
+    2. Apresente os links de busca abaixo EXATAMENTE UMA VEZ cada:
+       - Amazon: {amz_direct}
+       - Mercado Livre: {ml_direct}
+    3. Mantenha a resposta objetiva e amigável.
+    """
+
+    parts = [{"text": prompt_texto}]
+
+    if imagem_bytes and mime_type:
+        img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
+        parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    payload = {"contents": [{"parts": parts}]}
+    headers = {"Content-Type": "application/json"}
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=12)
+        res_json = response.json()
+
+        if "candidates" in res_json and len(res_json["candidates"]) > 0:
+            return res_json["candidates"][0]["content"]["parts"][0]["text"]
+        else:
+            return (
+                f"Au au! 🐾 O Caramelo farejou os menores preços pra você!\n\n"
+                f"📦 **Opção na Amazon:**\n👉 {amz_direct}\n\n"
+                f"🟡 **Opção no Mercado Livre:**\n👉 {ml_direct}\n\n"
+                f"🛡️ *Compre com segurança em lojas oficiais!*"
+            )
+    except Exception as e:
+        print(f"Erro na requisição Gemini: {e}")
+        return (
+            f"Au au! 🐾 O Caramelo farejou os menores preços pra você!\n\n"
+            f"📦 **Opção na Amazon:**\n👉 {amz_direct}\n\n"
+            f"🟡 **Opção no Mercado Livre:**\n👉 {ml_direct}\n\n"
+            f"🛡️ *Compre com segurança em lojas oficiais!*"
+        )
 
 @app.route("/", methods=["GET"])
 def home():
