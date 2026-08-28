@@ -175,7 +175,20 @@ def webhook():
         resposta_bot = processar_resposta(user_message)
         
         # URL formatada especificamente para a Evolution API v2.x
+       # Rota padrão de envio de texto na Evolution v2
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+
+        headers = {
+            "apikey": API_KEY,
+            "Content-Type": "application/json"
+        }
+
+        numero_limpo = "".join(filter(str.isdigit, str(phone)))
+
+        payload_envio = {
+            "number": numero_limpo,
+            "text": resposta_bot
+        }
 
         headers = {
             "apikey": API_KEY,
