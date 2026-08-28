@@ -109,11 +109,9 @@ def webhook():
     try:
         raw_payload = request.get_json(silent=True)
 
-        # 1. Ignora requisições sem conteúdo JSON válido
         if not raw_payload:
             return "OK", 200
 
-        # 2. Tratamento para Payloads enviadas como Lista [ {...} ]
         if isinstance(raw_payload, list):
             if len(raw_payload) == 0:
                 return "OK", 200
@@ -126,25 +124,21 @@ def webhook():
         if not isinstance(data, dict):
             return "OK", 200
 
-        # 3. Extrai subdados se o evento for 'MESSAGES_UPSERT'
         sub_data = data.get("data", {})
         if isinstance(sub_data, list):
             sub_data = sub_data[0] if len(sub_data) > 0 and isinstance(sub_data[0], dict) else {}
         if not isinstance(sub_data, dict):
             sub_data = {}
 
-        # 4. Ignora mensagens enviadas pelo próprio Bot (fromMe)
         from_me = data.get("fromMe", False) or sub_data.get("key", {}).get("fromMe", False)
         if from_me:
             return "OK", 200
 
-        # 5. Extração segura do número de telefone e dados do remetente
         key_data = sub_data.get("key", {}) if isinstance(sub_data, dict) else {}
         remote_jid = key_data.get("remoteJid", "") if isinstance(key_data, dict) else ""
         
         phone = data.get("phone") or (str(remote_jid).split("@")[0] if "@" in str(remote_jid) else "")
 
-        # Se não houver número válido (ex: evento de status da API), encerra sem erro
         if not phone or "status" in str(data.get("event", "")).lower():
             return "OK", 200
 
@@ -171,13 +165,9 @@ def webhook():
         if not user_message:
             user_message = "Olá!"
 
-        # 6. Processa e envia a resposta
         resposta_bot = processar_resposta(user_message)
         
-        # URL formatada especificamente para a Evolution API v2.x
-       # Rota padrão de envio de texto na Evolution v2
-       # URL limpa sem o nome da instância no final
-        url_envio = f"{EVOLUTION_URL}/message/sendText"
+        url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
 
         headers = {
             "apikey": API_KEY,
@@ -186,9 +176,23 @@ def webhook():
 
         numero_limpo = "".join(filter(str.isdigit, str(phone)))
 
-        # O nome da instância vai aqui dentro de forma segura
         payload_envio = {
-            "instance": EVOLUTION_INSTANCE,
             "number": numero_limpo,
             "text": resposta_bot
-        } 
+        }
+
+        try:
+            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
+            print(f"Status do Envio: {resp_envio.status_code}")
+        except Exception as err_envio:
+            print(f"Erro ao enviar requisição HTTP: {err_envio}")
+
+        return "OK", 200
+
+    except Exception as e:
+        print(f"Erro no processamento do webhook: {e}")
+        return "OK", 200
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
