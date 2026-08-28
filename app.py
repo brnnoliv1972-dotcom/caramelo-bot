@@ -27,7 +27,7 @@ CATALOGO = [
         "nome": "Batedeira Planetária",
         "categoria": "cozinha eletrodomesticos batedeira",
         "link_amazon": f"https://www.amazon.com.br/s?k=batedeira+planetaria&tag={AMAZON_TAG}",
-        "link_ml": f"https://lista.mercadolivre.com.br/batedeira-planetaria#matt={ML_TAG}",
+       "link_ml": f"https://lista.mercadolivre.com.br/{termo_busca}#matt={ML_TAG}",
     },
     {
         "nome": "Ração para Cães Adultos 15kg",
