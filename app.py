@@ -1,6 +1,7 @@
 import base64
 import os
 import requests
+import urllib.parse
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -18,43 +19,9 @@ ML_TAG = "decl20240321112857"
 # DOMÍNIOS SEGUROS PARA VERIFICAÇÃO ANTIFRAUDE
 DOMINIOS_SEGUROS = [
     "amazon.com.br", "mercadolivre.com.br", "mercadolibre.com",
-    "shopee.com.br", "magazineluiza.com.br", "casasbahia.com.br"
+    "shopee.com.br", "magazineluiza.com.br", "casasbahia.com.br",
+    "americanas.com.br", "kabum.com.br"
 ]
-
-# CATÁLOGO DE PRODUTOS E BUSCAS OFICIAIS
-CATALOGO = [
-    {
-        "nome": "Batedeira Planetária",
-        "categoria": "cozinha eletrodomesticos batedeira",
-        "link_amazon": f"https://www.amazon.com.br/s?k=batedeira+planetaria&tag={AMAZON_TAG}",
-       "link_ml": f"https://lista.mercadolivre.com.br/{termo_busca}#matt={ML_TAG}",
-    },
-    {
-        "nome": "Ração para Cães Adultos 15kg",
-        "categoria": "petshop pet cao cachorro ração",
-        "link_amazon": f"https://www.amazon.com.br/s?k=racao+caes+adultos+15kg&tag={AMAZON_TAG}",
-        "link_ml": f"https://lista.mercadolivre.com.br/racao-caes-15kg#matt={ML_TAG}",
-    },
-    {
-        "nome": "Smartphone Samsung Galaxy",
-        "categoria": "celular tecnologia eletronicos",
-        "link_amazon": f"https://www.amazon.com.br/s?k=smartphone+samsung+galaxy&tag={AMAZON_TAG}",
-        "link_ml": f"https://lista.mercadolivre.com.br/samsung-galaxy#matt={ML_TAG}",
-    },
-    {
-        "nome": "Fone de Ouvido Bluetooth Sem Fio",
-        "categoria": "fone audio musica eletronicos",
-        "link_amazon": f"https://www.amazon.com.br/s?k=fone+de+ouvido+bluetooth&tag={AMAZON_TAG}",
-        "link_ml": f"https://lista.mercadolivre.com.br/fone-bluetooth#matt={ML_TAG}",
-    },
-    {
-        "nome": "Parafusadeira e Furadeira a Bateria",
-        "categoria": "ferramentas furadeira parafusadeira",
-        "link_amazon": f"https://www.amazon.com.br/s?k=parafusadeira+furadeira+bateria&tag={AMAZON_TAG}",
-        "link_ml": f"https://lista.mercadolivre.com.br/parafusadeira-bateria#matt={ML_TAG}",
-    },
-]
-
 
 def verificar_link_suspeito(texto):
     """Verifica se há um link na mensagem e se ele pertence a uma loja oficial."""
@@ -64,12 +31,15 @@ def verificar_link_suspeito(texto):
             return True  # É um link suspeito!
     return False
 
+def gerar_links_busca(produto_nome):
+    """Gera links dinâmicos de busca para Amazon e Mercado Livre de qualquer produto."""
+    termo_encoded = urllib.parse.quote(produto_nome.strip())
+    link_amz = f"https://www.amazon.com.br/s?k={termo_encoded}&tag={AMAZON_TAG}"
+    link_ml = f"https://lista.mercadolivre.com.br/{termo_encoded}#matt={ML_TAG}"
+    return link_amz, link_ml
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
-    if not GEMINI_API_KEY:
-        return f"Olá! Confira ofertas seguras na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
-
-    # Verificação Antifraude Direta
+    # 1. VERIFICAÇÃO ANTIFRAUDE DE LINK SUSPEITO
     if verificar_link_suspeito(mensagem_cliente):
         return (
             "🚨 *ALERTA DO CARAMELO BOT!* 🐾\n\n"
@@ -79,23 +49,32 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"Compre com total segurança na loja oficial Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
         )
 
+    # 2. GERAR LINKS DINÂMICOS CASO O GEMINI NÃO ESTEJA DISPONÍVEL OU FALHE
+    termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
+    amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo else "ofertas")
+
+    if not GEMINI_API_KEY:
+        return (
+            f"Au au! 🐾 Achei opções verificadas para o produto digitado:\n\n"
+            f"📦 **Amazon:** {amz_direct}\n"
+            f"🟡 **Mercado Livre:** {ml_direct}"
+        )
+
     prompt_texto = f"""
-    Você é o Caramelo Bot, o cão farejador de ofertas seguras, simpático, prestativo e divertido.
-    Sua missão é recomendar produtos com ótimo preço e PROTEGER os clientes contra fraudes.
+    Você é o Caramelo Bot, o cão farejador de ofertas seguras do Caramelo Shop! Seu tom é simpático, alegre, divertido e muito solícito.
     
-    Catálogo de ofertas disponíveis:
-    {CATALOGO}
+    O usuário enviou a seguinte mensagem/produto: "{mensagem_cliente}"
     
-    Link Geral da Loja Segura: https://www.amazon.com.br?tag={AMAZON_TAG}
+    SEUS LINKS OFICIAIS GERADOS PARA ESTE PRODUTO SÃO:
+    - Link Amazon: {amz_direct}
+    - Link Mercado Livre: {ml_direct}
     
-    Instruções de Resposta:
-    1. Sempre use emojis amigáveis (🐾, ⭐️, 🏆, 📦, 🛡️, 👉).
-    2. Ao recomendar um produto, inclua informações de reputação simbólicas para reforçar a confiança (ex: ⭐️ Avaliação 4.8/5, 🏆 Vendedor Verificado / Loja Oficial, 📦 Envio Rápido).
-    3. Se o cliente perguntar por um produto do catálogo (ex: batedeira, fone, ração, celular), envie o link direto de busca do catálogo com a tag oficial.
-    4. Se o cliente pedir Mercado Livre especificamente, monte um link de busca no Mercado Livre (ex: https://lista.mercadolivre.com.br/nome-do-produto#matt={ML_TAG}).
-    5. Se o cliente enviar uma FOTO: Identifique o item na imagem, confirme a qualidade e envie o link de busca seguro correspondente.
-    
-    Mensagem do cliente: "{mensagem_cliente}"
+    INSTRUÇÕES DE RESPOSTA:
+    1. Sempre comece com uma saudação alegre de cachorro (ex: "Au au!", "AU AU! PERA AI!").
+    2. Apresente SEMPRE os dois links de busca acima (Amazon e Mercado Livre) formatados com clareza.
+    3. Adicione elementos simbólicos de confiança para valorizar a busca (ex: ⭐️ Produto de alta avaliação, 🏆 Vendedor Verificado / Loja Oficial, 📦 Envio Garantido).
+    4. Se o usuário enviou uma FOTO: Identifique o item da foto e use os links acima para recomendar onde comprar.
+    5. Mantenha a resposta curta, direta e amigável.
     """
 
     parts = [{"text": prompt_texto}]
@@ -104,7 +83,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
         parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
 
@@ -115,19 +94,20 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         if "candidates" in res_json and len(res_json["candidates"]) > 0:
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
         else:
-            if "batedeira" in mensagem_cliente.lower():
-                return (
-                    "Au au! 🐾 Achei as melhores opções de Batedeira Planetária com excelente reputação!\n\n"
-                    "⭐️ *Avaliação:* 4.8 / 5.0 (Mais de 1.000 compradores satisfeitos)\n"
-                    "🏆 *Vendedor:* Loja Oficial Verificada\n"
-                    "📦 *Garantia:* Compra Segura\n\n"
-                    f"👉 Confira aqui: https://www.amazon.com.br/s?k=batedeira+planetaria&tag={AMAZON_TAG}"
-                )
-            return f"Olá! Encontrei ofertas seguras na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
+            return (
+                f"Au au! 🐾 O Caramelo farejou os menores preços pra você!\n\n"
+                f"📦 **Opção na Amazon:**\n👉 {amz_direct}\n\n"
+                f"🟡 **Opção no Mercado Livre:**\n👉 {ml_direct}\n\n"
+                f"🛡️ *Compre com segurança em lojas oficiais!*"
+            )
     except Exception as e:
-        if "batedeira" in mensagem_cliente.lower():
-            return f"Au au! 🐾 Confira opções de Batedeira Planetária em promoção: https://www.amazon.com.br/s?k=batedeira+planetaria&tag={AMAZON_TAG}"
-        return f"Olá! Confira ofertas seguras na Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
+        print(f"Erro na requisição Gemini: {e}")
+        return (
+            f"Au au! 🐾 O Caramelo farejou os menores preços pra você!\n\n"
+            f"📦 **Opção na Amazon:**\n👉 {amz_direct}\n\n"
+            f"🟡 **Opção no Mercado Livre:**\n👉 {ml_direct}\n\n"
+            f"🛡️ *Compre com segurança em lojas oficiais!*"
+        )
 
 
 @app.route("/", methods=["GET"])
