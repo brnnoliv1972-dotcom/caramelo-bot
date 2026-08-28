@@ -6,10 +6,10 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Credenciais Z-API
-INSTANCE_ID = "3F82F1A840F592680627F2CCB21A3920"
-INSTANCE_TOKEN = "593C64792C43EADAA3AC305F"
-CLIENT_TOKEN = "Fd227d386b55c4977ae1bc922b09cf89eS"
+# Configurações da Evolution API
+EVOLUTION_URL = os.environ.get("ZAPI_URL") or os.environ.get("EVOLUTION_URL") or "http://evolution-api-production-5008.up.railway.app"
+EVOLUTION_INSTANCE = os.environ.get("ZAPI_INSTANCE") or os.environ.get("EVOLUTION_INSTANCE") or "atendimento"
+EVOLUTION_API_KEY = os.environ.get("ZAPI_TOKEN") or os.environ.get("EVOLUTION_API_KEY") or os.environ.get("ZAPI_CLIENT_TOKEN") or "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
 
 # Configurações do Afiliado e Gemini
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -83,7 +83,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
         parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
 
-    # Modelo Gemini 2.5 Flash Atualizado
+    # Modelo Gemini 2.5 Flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {"contents": [{"parts": parts}]}
     headers = {"Content-Type": "application/json"}
@@ -121,65 +121,73 @@ def webhook():
     try:
         data = request.get_json() or {}
 
-        if not data.get("fromMe", False):
-            phone = data.get("phone")
+        # Suporte para formato de Webhook da Evolution API e legado Z-API
+        from_me = data.get("fromMe", False) or data.get("data", {}).get("key", {}).get("fromMe", False)
+        
+        if not from_me:
+            # Extração de dados da Evolution API (MESSAGES_UPSERT)
+            key_data = data.get("data", {}).get("key", {}) if "data" in data else {}
+            remote_jid = key_data.get("remoteJid", "")
+            
+            # Extração do telefone
+            phone = data.get("phone") or remote_jid.split("@")[0] if "@" in remote_jid else ""
+            
             user_message = ""
             imagem_bytes = None
             mime_type = None
 
-            if "text" in data:
+            # Leitura da mensagem da Evolution API
+            message_obj = data.get("data", {}).get("message", {}) if "data" in data else data
+            
+            if "conversation" in message_obj:
+                user_message = message_obj["conversation"]
+            elif "extendedTextMessage" in message_obj:
+                user_message = message_obj["extendedTextMessage"].get("text", "")
+            elif "text" in data:
                 if isinstance(data["text"], dict):
                     user_message = data["text"].get("message", "")
                 elif isinstance(data["text"], str):
                     user_message = data["text"]
             elif "body" in data:
                 user_message = str(data.get("body", ""))
-            elif "caption" in data:
-                user_message = str(data.get("caption", ""))
 
-            if "image" in data:
-                image_info = data["image"]
-                if isinstance(image_info, dict):
-                    user_message = image_info.get(
-                        "caption", user_message or "O que é este produto da foto?"
-                    )
-                    image_url = image_info.get("imageUrl")
-                    if image_url:
-                        try:
-                            img_resp = requests.get(image_url, timeout=10)
-                            if img_resp.status_code == 200:
-                                imagem_bytes = img_resp.content
-                                mime_type = image_info.get("mimeType", "image/jpeg")
-                        except Exception as e:
-                            print(f"Erro imagem: {e}")
+            # Leitura de Imagem (se houver)
+            if "imageMessage" in message_obj or "image" in data:
+                img_data = message_obj.get("imageMessage", {}) or data.get("image", {})
+                user_message = img_data.get("caption", user_message or "O que é este produto da foto?")
 
             if not user_message and not imagem_bytes:
                 user_message = "Olá!"
 
-            resposta_bot = processar_resposta(user_message, imagem_bytes, mime_type)
+            if phone:
+                # 1. Processa a resposta no Gemini/Antifraude
+                resposta_bot = processar_resposta(user_message, imagem_bytes, mime_type)
 
-            # --- CONFIGURAÇÃO DE ENVIO - EVOLUTION API ---
-API_KEY = os.getenv("ZAPI_TOKEN") or os.getenv("EVOLUTION_API_KEY") or os.getenv("ZAPI_CLIENT_TOKEN")
+                # 2. Envia a resposta pela Evolution API
+                url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+                
+                headers = {
+                    "apikey": EVOLUTION_API_KEY,
+                    "Content-Type": "application/json"
+                }
 
-url_zapi = f"{ZAPI_URL}/message/sendText/{ZAPI_INSTANCE}"
+                numero_limpo = "".join(filter(str.isdigit, str(phone)))
 
-headers = {
-    "apikey": API_KEY,
-    "Content-Type": "application/json"
-}
+                payload_envio = {
+                    "number": numero_limpo,
+                    "text": resposta_bot
+                }
 
-# Limpa o número mantendo apenas dígitos
-numero_limpo = "".join(filter(str.isdigit, str(telefone_cliente)))
+                resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
+                print(f"Status do Envio: {resp_envio.status_code}")
 
-payload = {
-    "number": numero_limpo,
-    "text": resposta_do_gemini
-}
+        return "OK", 200
 
-# Envio da requisição HTTP
-response = requests.post(url_zapi, json=payload, headers=headers)
+    except Exception as e:
+        print(f"Erro no processamento do webhook: {e}")
+        return "OK", 200
 
-if response.status_code in [200, 201]:
-    print("Mensagem enviada com sucesso pela Evolution API!")
-else:
-    print(f"Erro ao enviar mensagem: {response.status_code} - {response.text}")
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
