@@ -6,20 +6,10 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Configurações de Conexão (Evolution API)
-raw_url = os.environ.get("EVOLUTION_URL") or os.environ.get("ZAPI_URL") or "https://evolution-api-production-5008.up.railway.app"
-# Força a remoção de qualquer colchete, parêntese ou markdown acidental
-if "](" in raw_url:
-    raw_url = raw_url.split("](")[0]
-EVOLUTION_URL = raw_url.replace("[", "").replace("]", "").replace("(", "").replace(")", "").strip(" '\"")
-
-EVOLUTION_INSTANCE = (os.environ.get("EVOLUTION_INSTANCE") or os.environ.get("ZAPI_INSTANCE") or "atendimento").strip()
-API_KEY = (
-    os.getenv("EVOLUTION_API_KEY")
-    or os.getenv("ZAPI_TOKEN")
-    or os.getenv("ZAPI_CLIENT_TOKEN")
-    or "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
-).strip()
+# Configurações Fixas e Limpas
+EVOLUTION_URL = "https://evolution-api-production-5008.up.railway.app"
+EVOLUTION_INSTANCE = "atendimento"
+API_KEY = "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "102030brn2586-20"
@@ -119,7 +109,7 @@ def webhook():
     try:
         raw_payload = request.get_json(silent=True) or {}
 
-        # Garante tratamento seguro se a payload for uma Lista [ ... ]
+        # Trata payload recebida como Lista [ {...} ]
         if isinstance(raw_payload, list):
             data = raw_payload[0] if len(raw_payload) > 0 and isinstance(raw_payload[0], dict) else {}
         elif isinstance(raw_payload, dict):
