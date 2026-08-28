@@ -6,7 +6,7 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
-# Configurações Fixas e Limpas (sem depender de variáveis com erro)
+# Configurações de Conexão com URL 100% Sanitizada
 EVOLUTION_URL = "https://evolution-api-production-5008.up.railway.app"
 EVOLUTION_INSTANCE = "atendimento"
 API_KEY = "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
@@ -107,85 +107,94 @@ def home():
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
-        raw_payload = request.get_json(silent=True) or {}
+        raw_payload = request.get_json(silent=True)
 
-        # Trata payload quando enviada dentro de uma lista
+        # 1. Ignora requisições sem conteúdo JSON válido
+        if not raw_payload:
+            return "OK", 200
+
+        # 2. Tratamento para Payloads enviadas como Lista [ {...} ]
         if isinstance(raw_payload, list):
-            data = raw_payload[0] if len(raw_payload) > 0 and isinstance(raw_payload[0], dict) else {}
+            if len(raw_payload) == 0:
+                return "OK", 200
+            data = raw_payload[0]
         elif isinstance(raw_payload, dict):
             data = raw_payload
         else:
-            data = {}
+            return "OK", 200
 
         if not isinstance(data, dict):
             return "OK", 200
 
+        # 3. Extrai subdados se o evento for 'MESSAGES_UPSERT'
         sub_data = data.get("data", {})
         if isinstance(sub_data, list):
             sub_data = sub_data[0] if len(sub_data) > 0 and isinstance(sub_data[0], dict) else {}
         if not isinstance(sub_data, dict):
             sub_data = {}
 
+        # 4. Ignora mensagens enviadas pelo próprio Bot (fromMe)
         from_me = data.get("fromMe", False) or sub_data.get("key", {}).get("fromMe", False)
+        if from_me:
+            return "OK", 200
+
+        # 5. Extração segura do número de telefone e dados do remetente
+        key_data = sub_data.get("key", {}) if isinstance(sub_data, dict) else {}
+        remote_jid = key_data.get("remoteJid", "") if isinstance(key_data, dict) else ""
         
-        if not from_me:
-            key_data = sub_data.get("key", {}) if isinstance(sub_data, dict) else {}
-            remote_jid = key_data.get("remoteJid", "") if isinstance(key_data, dict) else ""
-            
-            phone = data.get("phone") or (remote_jid.split("@")[0] if "@" in str(remote_jid) else "")
-            
-            user_message = ""
-            imagem_bytes = None
-            mime_type = None
+        phone = data.get("phone") or (str(remote_jid).split("@")[0] if "@" in str(remote_jid) else "")
 
-            message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
-            if isinstance(message_obj, list):
-                message_obj = message_obj[0] if len(message_obj) > 0 and isinstance(message_obj[0], dict) else {}
-            
-            if isinstance(message_obj, dict):
-                if "conversation" in message_obj:
-                    user_message = message_obj["conversation"]
-                elif "extendedTextMessage" in message_obj and isinstance(message_obj["extendedTextMessage"], dict):
-                    user_message = message_obj["extendedTextMessage"].get("text", "")
-            
-            if not user_message and isinstance(data, dict):
-                if "text" in data:
-                    if isinstance(data["text"], dict):
-                        user_message = data["text"].get("message", "")
-                    elif isinstance(data["text"], str):
-                        user_message = data["text"]
-                elif "body" in data:
-                    user_message = str(data.get("body", ""))
+        # Se não houver número válido (ex: evento de status da API), encerra sem erro
+        if not phone or "status" in str(data.get("event", "")).lower():
+            return "OK", 200
 
-            if isinstance(message_obj, dict) and ("imageMessage" in message_obj or "image" in data):
-                img_data = message_obj.get("imageMessage", {}) or data.get("image", {})
-                if isinstance(img_data, dict):
-                    user_message = img_data.get("caption", user_message or "O que é este produto da foto?")
+        user_message = ""
+        message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
+        if isinstance(message_obj, list):
+            message_obj = message_obj[0] if len(message_obj) > 0 and isinstance(message_obj[0], dict) else {}
 
-            if not user_message and not imagem_bytes:
-                user_message = "Olá!"
+        if isinstance(message_obj, dict):
+            if "conversation" in message_obj:
+                user_message = message_obj["conversation"]
+            elif "extendedTextMessage" in message_obj and isinstance(message_obj["extendedTextMessage"], dict):
+                user_message = message_obj["extendedTextMessage"].get("text", "")
 
-            if phone:
-                resposta_bot = processar_resposta(user_message, imagem_bytes, mime_type)
-                url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+        if not user_message and isinstance(data, dict):
+            if "text" in data:
+                if isinstance(data["text"], dict):
+                    user_message = data["text"].get("message", "")
+                elif isinstance(data["text"], str):
+                    user_message = data["text"]
+            elif "body" in data:
+                user_message = str(data.get("body", ""))
 
-                headers = {
-                    "apikey": API_KEY,
-                    "Content-Type": "application/json"
-                }
+        if not user_message:
+            user_message = "Olá!"
 
-                numero_limpo = "".join(filter(str.isdigit, str(phone)))
+        # 6. Processa e envia a resposta para a URL rigorosamente formatada
+        resposta_bot = processar_resposta(user_message)
+        
+        # Garante URL 100% limpa para evitar 'No connection adapters'
+        base_clean = "https://evolution-api-production-5008.up.railway.app".strip("/")
+        url_envio = f"{base_clean}/message/sendText/{EVOLUTION_INSTANCE}"
 
-                payload_envio = {
-                    "number": numero_limpo,
-                    "text": resposta_bot
-                }
+        headers = {
+            "apikey": API_KEY,
+            "Content-Type": "application/json"
+        }
 
-                try:
-                    resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
-                    print(f"Status do Envio: {resp_envio.status_code}")
-                except Exception as err_envio:
-                    print(f"Erro ao enviar requisição HTTP: {err_envio}")
+        numero_limpo = "".join(filter(str.isdigit, str(phone)))
+
+        payload_envio = {
+            "number": numero_limpo,
+            "text": resposta_bot
+        }
+
+        try:
+            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
+            print(f"Status do Envio: {resp_envio.status_code}")
+        except Exception as err_envio:
+            print(f"Erro ao enviar requisição HTTP: {err_envio}")
 
         return "OK", 200
 
