@@ -7,16 +7,18 @@ from flask import Flask, request
 app = Flask(__name__)
 
 # Configurações de Conexão (Evolution API)
-EVOLUTION_URL = os.environ.get("EVOLUTION_URL") or os.environ.get("ZAPI_URL") or "https://evolution-api-production-5008.up.railway.app"
-EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE") or os.environ.get("ZAPI_INSTANCE") or "atendimento"
+# Limpa automaticamente qualquer caractere/markdown extra da URL
+raw_url = os.environ.get("EVOLUTION_URL") or os.environ.get("ZAPI_URL") or "https://evolution-api-production-5008.up.railway.app"
+EVOLUTION_URL = raw_url.split("]")[0].split(")")[0].strip("[]'\" ")
+
+EVOLUTION_INSTANCE = (os.environ.get("EVOLUTION_INSTANCE") or os.environ.get("ZAPI_INSTANCE") or "atendimento").strip()
 API_KEY = (
     os.getenv("EVOLUTION_API_KEY")
     or os.getenv("ZAPI_TOKEN")
     or os.getenv("ZAPI_CLIENT_TOKEN")
     or "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc"
-)
+).strip()
 
-# Configurações do Afiliado e IA
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 AMAZON_TAG = "102030brn2586-20"
 ML_TAG = "decl20240321112857"
@@ -28,7 +30,6 @@ DOMINIOS_SEGUROS = [
 ]
 
 def verificar_link_suspeito(texto):
-    """Filtro antifraude para verificar se o link pertence a uma loja segura."""
     if "http://" in texto or "https://" in texto:
         eh_seguro = any(dominio in texto.lower() for dominio in DOMINIOS_SEGUROS)
         if not eh_seguro:
@@ -36,14 +37,12 @@ def verificar_link_suspeito(texto):
     return False
 
 def gerar_links_busca(produto_nome):
-    """Gera links dinâmicos com a sua tag de afiliado."""
     termo_encoded = urllib.parse.quote(produto_nome.strip())
     link_amz = f"https://www.amazon.com.br/s?k={termo_encoded}&tag={AMAZON_TAG}"
     link_ml = f"https://lista.mercadolivre.com.br/{termo_encoded}#matt={ML_TAG}"
     return link_amz, link_ml
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
-    # 1. Antifraude
     if verificar_link_suspeito(mensagem_cliente):
         return (
             "🚨 *ALERTA DO CARAMELO BOT!* 🐾\n\n"
@@ -53,7 +52,6 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"Compre com total segurança na loja oficial Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
         )
 
-    # 2. Geração dos links de busca
     termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
     amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo else "ofertas")
 
@@ -119,10 +117,24 @@ def webhook():
     try:
         data = request.get_json() or {}
 
-        from_me = data.get("fromMe", False) or data.get("data", {}).get("key", {}).get("fromMe", False)
+        # Trata caso a payload principal seja uma lista
+        if isinstance(data, list):
+            data = data[0] if len(data) > 0 else {}
+
+        if not isinstance(data, dict):
+            return "OK", 200
+
+        sub_data = data.get("data", {})
+        if isinstance(sub_data, list):
+            sub_data = sub_data[0] if len(sub_data) > 0 else {}
+
+        if not isinstance(sub_data, dict):
+            sub_data = {}
+
+        from_me = data.get("fromMe", False) or sub_data.get("key", {}).get("fromMe", False)
         
         if not from_me:
-            key_data = data.get("data", {}).get("key", {}) if "data" in data else {}
+            key_data = sub_data.get("key", {}) if isinstance(sub_data, dict) else {}
             remote_jid = key_data.get("remoteJid", "")
             
             phone = data.get("phone") or (remote_jid.split("@")[0] if "@" in remote_jid else "")
@@ -131,23 +143,29 @@ def webhook():
             imagem_bytes = None
             mime_type = None
 
-            message_obj = data.get("data", {}).get("message", {}) if "data" in data else data
+            message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
+            if isinstance(message_obj, list):
+                message_obj = message_obj[0] if len(message_obj) > 0 else {}
             
-            if "conversation" in message_obj:
-                user_message = message_obj["conversation"]
-            elif "extendedTextMessage" in message_obj:
-                user_message = message_obj["extendedTextMessage"].get("text", "")
-            elif "text" in data:
-                if isinstance(data["text"], dict):
-                    user_message = data["text"].get("message", "")
-                elif isinstance(data["text"], str):
-                    user_message = data["text"]
-            elif "body" in data:
-                user_message = str(data.get("body", ""))
+            if isinstance(message_obj, dict):
+                if "conversation" in message_obj:
+                    user_message = message_obj["conversation"]
+                elif "extendedTextMessage" in message_obj:
+                    user_message = message_obj["extendedTextMessage"].get("text", "")
+            
+            if not user_message and isinstance(data, dict):
+                if "text" in data:
+                    if isinstance(data["text"], dict):
+                        user_message = data["text"].get("message", "")
+                    elif isinstance(data["text"], str):
+                        user_message = data["text"]
+                elif "body" in data:
+                    user_message = str(data.get("body", ""))
 
-            if "imageMessage" in message_obj or "image" in data:
+            if isinstance(message_obj, dict) and ("imageMessage" in message_obj or "image" in data):
                 img_data = message_obj.get("imageMessage", {}) or data.get("image", {})
-                user_message = img_data.get("caption", user_message or "O que é este produto da foto?")
+                if isinstance(img_data, dict):
+                    user_message = img_data.get("caption", user_message or "O que é este produto da foto?")
 
             if not user_message and not imagem_bytes:
                 user_message = "Olá!"
@@ -183,5 +201,3 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-   
