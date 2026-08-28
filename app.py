@@ -51,7 +51,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"🛡️ *Compre com segurança em lojas oficiais!*"
         )
 
-  prompt_texto = f"""
+    prompt_texto = f"""
     Você é o Caramelo Bot, o cão farejador de ofertas seguras e curador de elite do Caramelo Shop! Seu tom é simpático, malandro, alegre e divertido.
     O usuário enviou a seguinte busca: "{mensagem_cliente}"
     
@@ -62,8 +62,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         - Amazon: {amz_direct}
         - Mercado Livre: {ml_direct}
     4. Encerre com um toque amigável de segurança, lembrando que o link é oficial e blindado contra golpes.
-    """ 
-
+    """
 
     parts = [{"text": prompt_texto}]
     if imagem_bytes and mime_type:
@@ -145,7 +144,6 @@ def webhook():
 
         resposta_bot = processar_resposta(user_message)
         
-        # Envio para a Evolution API
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
         headers = {"apikey": API_KEY, "Content-Type": "application/json"}
         numero_limpo = "".join(filter(str.isdigit, str(phone)))
