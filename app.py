@@ -40,6 +40,18 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"Compre com total segurança na loja oficial Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
         )
 
+    # ---> FILTRO INTeligente: Se for apenas uma saudação, o Caramelo responde com elegância <---
+    if mensagem_cliente and not imagem_bytes:
+        mensagem_limpa = mensagem_cliente.strip().lower()
+        saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "tudo bem", "eae", "salve", "hey"]
+        
+        if mensagem_limpa in saudacoes:
+            return (
+                "Au-au! 🐾 Olá! Eu sou o Caramelo, seu cão farejador de ofertas. "
+                "Manda aqui o **nome de um produto** ou a **foto** dele que eu busco o menor preço na Amazon e no Mercado Livre para você na hora!"
+            )
+    # -----------------------------------------------------------------------------------------
+
     termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
     amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo and termo_limpo != "O que é isso? Ache o melhor preço para este produto na foto." else "ofertas")
 
@@ -135,7 +147,6 @@ def webhook():
             elif "imageMessage" in message_obj and isinstance(message_obj["imageMessage"], dict):
                 img_data = message_obj["imageMessage"]
                 user_message = img_data.get("caption", "Jogo de mesa e cadeira")
-                # Tentativa de pegar a imagem se vier em base64 da Evolution
                 if "base64" in img_data:
                     try:
                         imagem_bytes = base64.b64decode(img_data["base64"])
