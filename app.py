@@ -40,17 +40,15 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"Compre com total segurança na loja oficial Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
         )
 
-    # ---> FILTRO INTeligente: Se for apenas uma saudação, o Caramelo responde com elegância <---
+    # ---> FILTRO INTELIGENTE CORRETO E SEGURO <---
     if mensagem_cliente and not imagem_bytes:
         mensagem_limpa = mensagem_cliente.strip().lower()
-        saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "tudo bem", "eae", "salve", "hey"]
-        
-        if mensagem_limpa in saudacoes:
+        if any(s in mensagem_limpa for s in ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "eae", "salve", "hey", "caramelo"]) and len(mensagem_limpa) < 30:
             return (
                 "Au-au! 🐾 Olá! Eu sou o Caramelo, seu cão farejador de ofertas. "
                 "Manda aqui o **nome de um produto** ou a **foto** dele que eu busco o menor preço na Amazon e no Mercado Livre para você na hora!"
             )
-    # -----------------------------------------------------------------------------------------
+    # ---------------------------------------------
 
     termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
     amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo and termo_limpo != "O que é isso? Ache o melhor preço para este produto na foto." else "ofertas")
