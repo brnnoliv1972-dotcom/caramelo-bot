@@ -43,6 +43,14 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             "Pode ser uma tentativa de golpe ou fraude!\n\n"
             "🛡️ *Dica de Segurança:* Nunca digite sua senha ou dados de cartão em sites desconhecidos.\n\n"
             f"Compre com total segurança na loja oficial Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
+            🐾 Caramelo Bot: Busca Inteligente & Proteção Antifraude
+O Caramelo opera como um motor de busca preditivo e um escudo de segurança em tempo real para compras online:
+
+Busca 100% Automatizada (Sem Cadastro Manual): Você não precisa perder tempo cadastrando produtos, preços ou estoques. O sistema interpreta o pedido do cliente (por texto ou foto) e realiza a busca instantânea na nuvem.
+
+Filtro Ativo de Reputação: A Inteligência Artificial aplica parâmetros oficiais nas plataformas da Amazon e Mercado Livre, direcionando o consumidor apenas para vendedores verificados, produtos de alta reputação (4.5+ estrelas) e anúncios com garantia de entrega.
+
+Módulo Antifraude em Tempo Real: Se o usuário enviar um link suspeito na conversa, a IA analisa a estrutura da URL e bloqueia tentativas de golpe ou sites clonados, garantindo uma navegação totalmente blindada.
         )
 
     # ---> FILTRO INTELIGENTE CORRETO E SEGURO <---
