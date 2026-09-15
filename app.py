@@ -2,14 +2,20 @@ import base64
 import os
 import requests
 import urllib.parse
+import google.generativeai as genai
 from flask import Flask, request
 
 app = Flask(__name__)
 
+# Variáveis de Ambiente
 EVOLUTION_URL = os.environ.get("EVOLUTION_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
 EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE", "atendimento")
 API_KEY = os.environ.get("API_KEY", "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
 AMAZON_TAG = "102030brn2586-20"
 ML_TAG = "decl20240321112857"
 
@@ -91,22 +97,30 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     3. Use EXATAMENTE os links fornecidos em {ml_direct} e {amz_direct} nos campos correspondentes. Não altere as URLs.
     """
 
-    parts = [{"text": prompt_texto}]
-    if imagem_bytes and mime_type:
-        img_b64 = base64.b64encode(imagem_bytes).decode("utf-8")
-        parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
+    modelos_para_testar = [
+        "gemini-3.6-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro"
+    ]
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-    payload = {"contents": [{"parts": parts}]}
-    headers = {"Content-Type": "application/json"}
+    for nome_modelo in modelos_para_testar:
+        try:
+            model = genai.GenerativeModel(nome_modelo)
+            conteudos = [{"role": "user", "parts": [prompt_texto]}]
 
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=12)
-        res_json = response.json()
-        if "candidates" in res_json and len(res_json["candidates"]) > 0:
-            return res_json["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        print(f"Erro na requisição Gemini: {e}")
+            if imagem_bytes and mime_type:
+                conteudos[0]["parts"].append({
+                    "mime_type": mime_type,
+                    "data": imagem_bytes
+                })
+
+            response = model.generate_content(conteudos)
+            if response and response.text:
+                print(f">>> SUCESSO Caramelo com modelo: {nome_modelo}", flush=True)
+                return response.text
+        except Exception as e:
+            print(f">>> FALHA Caramelo com modelo {nome_modelo}: {e}", flush=True)
 
     return (
         f"Au au! 🐾 O Caramelo farejou as opções mais bem avaliadas pra você!\n\n"
@@ -184,13 +198,23 @@ def webhook():
         resposta_bot = processar_resposta(user_message, imagem_bytes=imagem_bytes, mime_type=mime_type)
         
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
-        headers = {"apikey": API_KEY, "Content-Type": "application/json"}
+        headers = {
+            "apikey": API_KEY,
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        }
         numero_limpo = "".join(filter(str.isdigit, str(phone)))
-        payload_envio = {"number": numero_limpo, "text": resposta_bot}
+
+        # ADICIONADO O EFEITO DIGITANDO (delay de 3 segundos)
+        payload_envio = {
+            "number": numero_limpo,
+            "text": resposta_bot,
+            "delay": 3000
+        }
 
         try:
-            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=10)
-            print(f"Status do Envio: {resp_envio.status_code}")
+            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=15)
+            print(f"Status do Envio Caramelo: {resp_envio.status_code}")
         except Exception as err_envio:
             print(f"Erro ao enviar requisição HTTP: {err_envio}")
 
