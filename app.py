@@ -57,7 +57,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         if any(s in mensagem_limpa for s in ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "eae", "salve", "hey", "caramelo"]) and len(mensagem_limpa) < 30:
             return (
                 "Au-au! 🐾 Olá! Eu sou o Caramelo, seu cão farejador de ofertas de elite.\n\n"
-                "Manda aqui o **nome de um produto link suspeito** ou a **foto** dele que eu busco as opções *mais bem avaliadas e com selo de segurança* nas melhores plataformas validadas pra você!"
+                "Manda aqui o **nome de um produto link suspeito descubro se é golpe!** ou a **foto** dele que eu busco as opções *mais bem avaliadas e com selo de segurança* nas melhores plataformas de compras validadas pra você!"
             )
     # ---------------------------------------------
 
