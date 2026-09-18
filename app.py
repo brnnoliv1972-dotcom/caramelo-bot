@@ -57,7 +57,7 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         if any(s in mensagem_limpa for s in ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "eae", "salve", "hey", "caramelo"]) and len(mensagem_limpa) < 30:
             return (
                 "Au-au! 🐾 Olá! Eu sou o Caramelo, seu cão farejador de ofertas de elite.\n\n"
-                "Manda aqui o **nome de um produto link suspeito** ou a **foto** dele que eu busco as opções *mais bem avaliadas e com selo de segurança* na Amazon e no Mercado Livre pra você!"
+                "Manda aqui o **nome de um produto link suspeito** ou a **foto** dele que eu busco as opções *mais bem avaliadas e com selo de segurança* nas melhores plataformas validadas pra você!"
             )
     # ---------------------------------------------
 
@@ -205,11 +205,11 @@ def webhook():
         }
         numero_limpo = "".join(filter(str.isdigit, str(phone)))
 
-        # ADICIONADO O EFEITO DIGITANDO (delay de 3 segundos)
+        # ADICIONADO O EFEITO DIGITANDO (delay de 5 segundos)
         payload_envio = {
             "number": numero_limpo,
             "text": resposta_bot,
-            "delay": 3000
+            "delay": 5000
         }
 
         try:
