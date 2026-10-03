@@ -2,7 +2,8 @@ import base64
 import os
 import requests
 import urllib.parse
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -13,8 +14,8 @@ EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE", "atendimento")
 API_KEY = os.environ.get("API_KEY", "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+# Inicialização da Nova SDK Google GenAI
+client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 AMAZON_TAG = "102030brn2586-20"
 ML_TAG = "decl20240321112857"
@@ -57,14 +58,14 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
         if any(s in mensagem_limpa for s in ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "eae", "salve", "hey", "caramelo"]) and len(mensagem_limpa) < 30:
             return (
                 "Au-au! 🐾 Olá! Eu sou o Caramelo, seu cão farejador de ofertas de elite.\n\n"
-                "Manda aqui o **nome de um produto link suspeito descubro se é golpe!** ou a **foto** dele que eu busco as opções *mais bem avaliadas e com selo de segurança* nas melhores plataformas de compras validadas pra você!"
+                "Manda aqui o **nome de um produto ou link suspeito pra descobrir se é golpe!** ou a **foto** dele que eu busco as opções *mais bem avaliadas e com selo de segurança* nas melhores plataformas de compras validadas pra você!"
             )
     # ---------------------------------------------
 
     termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
     amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo and termo_limpo != "O que é isso? Ache o melhor preço para este produto na foto." else "ofertas")
 
-    if not GEMINI_API_KEY:
+    if not client:
         return (
             f"Au au! 🐾 O Caramelo farejou as opções mais bem avaliadas pra você!\n\n"
             f"📦 **Opção Líder na Amazon:**\n👉 {amz_direct}\n\n"
@@ -97,25 +98,25 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
     3. Use EXATAMENTE os links fornecidos em {ml_direct} e {amz_direct} nos campos correspondentes. Não altere as URLs.
     """
 
+    conteudo_requisicao = [prompt_texto]
+
+    if imagem_bytes and mime_type:
+        conteudo_requisicao.append(
+            types.Part.from_bytes(data=imagem_bytes, mime_type=mime_type)
+        )
+
     modelos_para_testar = [
         "gemini-3.6-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-2.0-flash",
-        "gemini-1.5-pro"
+        "gemini-2.5-flash",
+        "gemini-1.5-flash"
     ]
 
     for nome_modelo in modelos_para_testar:
         try:
-            model = genai.GenerativeModel(nome_modelo)
-            conteudos = [{"role": "user", "parts": [prompt_texto]}]
-
-            if imagem_bytes and mime_type:
-                conteudos[0]["parts"].append({
-                    "mime_type": mime_type,
-                    "data": imagem_bytes
-                })
-
-            response = model.generate_content(conteudos)
+            response = client.models.generate_content(
+                model=nome_modelo,
+                contents=conteudo_requisicao
+            )
             if response and response.text:
                 print(f">>> SUCESSO Caramelo com modelo: {nome_modelo}", flush=True)
                 return response.text
@@ -205,7 +206,7 @@ def webhook():
         }
         numero_limpo = "".join(filter(str.isdigit, str(phone)))
 
-        # ADICIONADO O EFEITO DIGITANDO (delay de 5 segundos)
+        # Efeito digitando (delay de 5 segundos)
         payload_envio = {
             "number": numero_limpo,
             "text": resposta_bot,
@@ -226,3 +227,4 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
