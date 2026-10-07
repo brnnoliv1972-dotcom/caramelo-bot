@@ -5,11 +5,30 @@ import urllib.parse
 from google import genai
 from google.genai import types
 from flask import Flask, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 
+# Configuração do Rate Limiter e Trava de Spam
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
+user_message_count = {}
+
+def is_spamming(phone_number, max_messages=15):
+    current_count = user_message_count.get(phone_number, 0)
+    if current_count >= max_messages:
+        return True
+    user_message_count[phone_number] = current_count + 1
+    return False
+
 # Variáveis de Ambiente
-EVOLUTION_URL = os.environ.get("EVOLUTION_URL", "https://evolution-api-production-5008.up.railway.app").rstrip("/")
+EVOLUTION_URL = os.environ.get("EVOLUTION_URL", "https://evolution-api-00at.onrender.com").rstrip("/")
 EVOLUTION_INSTANCE = os.environ.get("EVOLUTION_INSTANCE", "atendimento")
 API_KEY = os.environ.get("API_KEY", "97d3f3aee5196398da165c49b3a5a8fe2d28507ac3742c356fe88c897fec9bcc")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -33,13 +52,8 @@ def verificar_link_suspeito(texto):
 
 def gerar_links_busca(produto_nome):
     termo_encoded = urllib.parse.quote(produto_nome.strip())
-    
-    # Amazon: Parâmetro 's=review-rank' força a busca por Melhores Avaliados / Mais Vendidos
     link_amz = f"https://www.amazon.com.br/s?k={termo_encoded}&s=review-rank&tag={AMAZON_TAG}"
-    
-    # Mercado Livre: Ordenação focada em lojas oficiais e reputação máxima
     link_ml = f"https://lista.mercadolivre.com.br/{termo_encoded}_NoIndex_True#matt={ML_TAG}"
-    
     return link_amz, link_ml
 
 def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
@@ -52,7 +66,6 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             f"Compre com total segurança na loja oficial Amazon: https://www.amazon.com.br?tag={AMAZON_TAG}"
         )
 
-    # ---> FILTRO INTELIGENTE CORRETO E SEGURO <---
     if mensagem_cliente and not imagem_bytes:
         mensagem_limpa = mensagem_cliente.strip().lower()
         if any(s in mensagem_limpa for s in ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "eae", "salve", "hey", "caramelo"]) and len(mensagem_limpa) < 30:
@@ -60,7 +73,6 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
                 "Au-au! 🐾 Olá! Eu sou o Caramelo, seu cão farejador de ofertas de elite.\n\n"
                 "Manda aqui o **nome de um produto ou link suspeito pra descobrir se é golpe!** ou a **foto** dele que eu busco as opções *mais bem avaliadas e com selo de segurança* nas melhores plataformas de compras validadas pra você!"
             )
-    # ---------------------------------------------
 
     termo_limpo = mensagem_cliente.replace("http://", "").replace("https://", "").strip()
     amz_direct, ml_direct = gerar_links_busca(termo_limpo if termo_limpo and termo_limpo != "O que é isso? Ache o melhor preço para este produto na foto." else "ofertas")
@@ -135,6 +147,7 @@ def home():
     return "Caramelo Bot Antifraude + Curadoria Inteligente Ativo!"
 
 @app.route("/webhook", methods=["POST"])
+@limiter.limit("30 per minute")
 def webhook():
     try:
         raw_payload = request.get_json(silent=True)
@@ -159,6 +172,13 @@ def webhook():
         phone = data.get("phone") or (str(remote_jid).split("@")[0] if "@" in str(remote_jid) else "")
 
         if not phone or "status" in str(data.get("event", "")).lower():
+            return "OK", 200
+
+        numero_limpo = "".join(filter(str.isdigit, str(phone)))
+
+        # Checagem Anti-Spam por Número
+        if is_spamming(numero_limpo, max_messages=15):
+            print(f"⚠️ Trava Anti-Spam ativada para o número: {numero_limpo}")
             return "OK", 200
 
         message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
@@ -204,7 +224,6 @@ def webhook():
             "Authorization": f"Bearer {API_KEY}",
             "Content-Type": "application/json"
         }
-        numero_limpo = "".join(filter(str.isdigit, str(phone)))
 
         # Efeito digitando (delay de 5 segundos)
         payload_envio = {
