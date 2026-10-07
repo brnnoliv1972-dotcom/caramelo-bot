@@ -20,7 +20,7 @@ limiter = Limiter(
 
 user_message_count = {}
 
-def is_spamming(phone_number, max_messages=15):
+def is_spamming(phone_number, max_messages=4):
     current_count = user_message_count.get(phone_number, 0)
     if current_count >= max_messages:
         return True
@@ -176,9 +176,14 @@ def webhook():
 
         numero_limpo = "".join(filter(str.isdigit, str(phone)))
 
-        # Checagem Anti-Spam por Número
-        if is_spamming(numero_limpo, max_messages=15):
-            print(f"⚠️ Trava Anti-Spam ativada para o número: {numero_limpo}")
+        # 🛑 TRAVA 1: Ignora números curtos (SAC/Operadoras costumam usar menos de 10 dígitos)
+        if len(numero_limpo) < 10:
+            print(f"⚠️ Mensagem ignorada: Número curto/operadora ({numero_limpo})")
+            return "OK", 200
+
+        # 🛑 TRAVA 2: Checagem Anti-Spam por Número (Limite reduzido para 4 mensagens)
+        if is_spamming(numero_limpo, max_messages=4):
+            print(f"⚠️ Trava Anti-Spam/Loop ativada para o número: {numero_limpo}")
             return "OK", 200
 
         message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
@@ -216,6 +221,15 @@ def webhook():
         if not user_message and not imagem_bytes:
             user_message = "Olá!"
 
+        # 🛑 TRAVA 3: Ignora mensagens clássicas de menus automáticos de operadoras/SAC
+        termos_bot_operadora = [
+            "digite 1", "digite 2", "digite 3", "protocolo de atendimento",
+            "menu principal", "informe o cpf", "opção desejada", "segunda via"
+        ]
+        if any(termo in user_message.lower() for termo in termos_bot_operadora):
+            print(f"⚠️ Resposta de robô externo detectada no número {numero_limpo}. Ignorando.")
+            return "OK", 200
+
         resposta_bot = processar_resposta(user_message, imagem_bytes=imagem_bytes, mime_type=mime_type)
         
         url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
@@ -246,4 +260,3 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
