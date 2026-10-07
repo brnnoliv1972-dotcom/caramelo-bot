@@ -2,3 +2,4 @@ Flask
 requests
 google-genai
 gunicorn
+Flask-Limiter==3.5.0
