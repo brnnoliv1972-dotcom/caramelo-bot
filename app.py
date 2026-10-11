@@ -4,7 +4,7 @@ import requests
 import urllib.parse
 from google import genai
 from google.genai import types
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -117,9 +117,10 @@ def processar_resposta(mensagem_cliente, imagem_bytes=None, mime_type=None):
             types.Part.from_bytes(data=imagem_bytes, mime_type=mime_type)
         )
 
+    # Modelos atualizados e estáveis
     modelos_para_testar = [
-        "gemini-3.6-flash",
         "gemini-2.5-flash",
+        "gemini-2.0-flash",
         "gemini-1.5-flash"
     ]
 
@@ -152,11 +153,11 @@ def webhook():
     try:
         raw_payload = request.get_json(silent=True)
         if not raw_payload:
-            return "OK", 200
+            return jsonify({"status": "ok"}), 200
 
         data = raw_payload[0] if isinstance(raw_payload, list) and len(raw_payload) > 0 else raw_payload
         if not isinstance(data, dict):
-            return "OK", 200
+            return jsonify({"status": "ok"}), 200
 
         sub_data = data.get("data", {})
         if isinstance(sub_data, list) and len(sub_data) > 0:
@@ -165,26 +166,22 @@ def webhook():
             sub_data = {}
 
         if data.get("fromMe", False) or sub_data.get("key", {}).get("fromMe", False):
-            return "OK", 200
+            return jsonify({"status": "ok"}), 200
 
         key_data = sub_data.get("key", {}) if isinstance(sub_data, dict) else {}
         remote_jid = key_data.get("remoteJid", "") if isinstance(key_data, dict) else {}
         phone = data.get("phone") or (str(remote_jid).split("@")[0] if "@" in str(remote_jid) else "")
 
         if not phone or "status" in str(data.get("event", "")).lower():
-            return "OK", 200
+            return jsonify({"status": "ok"}), 200
 
         numero_limpo = "".join(filter(str.isdigit, str(phone)))
 
-        # 🛑 TRAVA 1: Ignora números curtos (SAC/Operadoras costumam usar menos de 10 dígitos)
         if len(numero_limpo) < 10:
-            print(f"⚠️ Mensagem ignorada: Número curto/operadora ({numero_limpo})")
-            return "OK", 200
+            return jsonify({"status": "ok"}), 200
 
-        # 🛑 TRAVA 2: Checagem Anti-Spam por Número (Limite reduzido para 4 mensagens)
         if is_spamming(numero_limpo, max_messages=4):
-            print(f"⚠️ Trava Anti-Spam/Loop ativada para o número: {numero_limpo}")
-            return "OK", 200
+            return jsonify({"status": "ok"}), 200
 
         message_obj = sub_data.get("message", {}) if isinstance(sub_data, dict) and "message" in sub_data else data
         if isinstance(message_obj, list) and len(message_obj) > 0:
@@ -221,14 +218,12 @@ def webhook():
         if not user_message and not imagem_bytes:
             user_message = "Olá!"
 
-        # 🛑 TRAVA 3: Ignora mensagens clássicas de menus automáticos de operadoras/SAC
         termos_bot_operadora = [
             "digite 1", "digite 2", "digite 3", "protocolo de atendimento",
             "menu principal", "informe o cpf", "opção desejada", "segunda via"
         ]
         if any(termo in user_message.lower() for termo in termos_bot_operadora):
-            print(f"⚠️ Resposta de robô externo detectada no número {numero_limpo}. Ignorando.")
-            return "OK", 200
+            return jsonify({"status": "ok"}), 200
 
         resposta_bot = processar_resposta(user_message, imagem_bytes=imagem_bytes, mime_type=mime_type)
         
@@ -239,7 +234,6 @@ def webhook():
             "Content-Type": "application/json"
         }
 
-        # Efeito digitando (delay de 5 segundos)
         payload_envio = {
             "number": numero_limpo,
             "text": resposta_bot,
@@ -247,16 +241,15 @@ def webhook():
         }
 
         try:
-            resp_envio = requests.post(url_envio, json=payload_envio, headers=headers, timeout=15)
-            print(f"Status do Envio Caramelo: {resp_envio.status_code}")
-        except Exception as err_envio:
-            print(f"Erro ao enviar requisição HTTP: {err_envio}")
+            requests.post(url_envio, json=payload_envio, headers=headers, timeout=15)
+        except Exception:
+            pass
 
-        return "OK", 200
-    except Exception as e:
-        print(f"Erro no processamento do webhook: {e}")
-        return "OK", 200
+        return jsonify({"status": "success"}), 200
+    except Exception:
+        return jsonify({"status": "error"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
