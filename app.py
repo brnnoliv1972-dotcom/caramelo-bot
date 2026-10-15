@@ -213,4 +213,42 @@ def webhook():
                 elif isinstance(data["text"], str):
                     user_message = data["text"]
             elif "body" in data:
-                user_message
+                user_message = str(data.get("body", ""))
+
+        if not user_message and not imagem_bytes:
+            user_message = "Olá!"
+
+        termos_bot_operadora = [
+            "digite 1", "digite 2", "digite 3", "protocolo de atendimento",
+            "menu principal", "informe o cpf", "opção desejada", "segunda via"
+        ]
+        if any(termo in user_message.lower() for termo in termos_bot_operadora):
+            return jsonify({"status": "ok"}), 200
+
+        resposta_bot = processar_resposta(user_message, imagem_bytes=imagem_bytes, mime_type=mime_type)
+        
+        url_envio = f"{EVOLUTION_URL}/message/sendText/{EVOLUTION_INSTANCE}"
+        headers = {
+            "apikey": API_KEY,
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload_envio = {
+            "number": numero_limpo,
+            "text": resposta_bot,
+            "delay": 5000
+        }
+
+        try:
+            requests.post(url_envio, json=payload_envio, headers=headers, timeout=15)
+        except Exception:
+            pass
+
+        return jsonify({"status": "success"}), 200
+    except Exception:
+        return jsonify({"status": "error"}), 200
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
